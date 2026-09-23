@@ -1,3 +1,5 @@
+import LoginPage from "./LoginPage";
+import UserAdminPage from "./UserAdminPage";
 import PayrollPage from "./PayrollPage";
 import OEEPage from "./OEEPage";
 import ERPPlan from "./ERPPlan";
@@ -5,15 +7,16 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 
 const menu = [
-  ["dashboard", "Обзор"],
-  ["production", "Производство"],
-  ["erp-plan", "План ERP"],
-  ["oee-detail", "OEE детально"],
-  ["downtime", "Простои"],
-  ["quality", "ГП и брак"],
-  ["reconciliation", "Сверка"],
-  ["payroll", "Сдельная ЗП"],
-  ["integrations", "Интеграции"]
+  { key: "dashboard", label: "Обзор", roles: ["OPERATOR","QC","WAREHOUSE","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "production", label: "Производство", roles: ["OPERATOR","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ADMIN"] },
+  { key: "erp-plan", label: "План ERP", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "oee-detail", label: "OEE детально", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "downtime", label: "Простои", roles: ["OPERATOR","SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
+  { key: "quality", label: "ГП и брак", roles: ["QC","SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
+  { key: "reconciliation", label: "Сверка", roles: ["QC","WAREHOUSE","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "payroll", label: "Сдельная ЗП", roles: ["ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "integrations", label: "Интеграции", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"] },
+  { key: "users", label: "Пользователи", roles: ["ADMIN"] }
 ];
 
 const sourceNames = {
@@ -323,14 +326,75 @@ function Table({ title, columns, rows }) {
   return <section className="card panel table-card"><div className="panel-head"><h2>{title}</h2><span>{rows.length} строк</span></div><div className="table-wrap"><table><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i) => <tr key={i}>{row.map((cell,j) => <td key={j}>{cell}</td>)}</tr>)}</tbody></table></div></section>;
 }
 
+function PasswordChangeScreen({ user, onChanged, onLogout }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    if (newPassword !== repeat) {
+      setError("Новые пароли не совпадают");
+      return;
+    }
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      onChanged({ ...user, must_change_password: false });
+    } catch (err) {
+      setError(err.message || "Не удалось изменить пароль");
+    }
+  };
+
+  return <div className="login-shell">
+    <div className="login-card">
+      <span className="login-eyebrow">Безопасность</span>
+      <h1>Смените временный пароль</h1>
+      <p>Перед началом работы задайте собственный пароль длиной не менее 12 символов.</p>
+      <label><span>Текущий пароль</span><input className="form-control" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></label>
+      <label><span>Новый пароль</span><input className="form-control" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></label>
+      <label><span>Повторите новый пароль</span><input className="form-control" type="password" value={repeat} onChange={e => setRepeat(e.target.value)} /></label>
+      {error && <div className="login-error">{error}</div>}
+      <button className="btn primary login-button" disabled={newPassword.length < 12 || newPassword !== repeat} onClick={save}>Сохранить новый пароль</button>
+      <button className="btn ghost login-button" onClick={onLogout}>Выйти</button>
+    </div>
+  </div>;
+}
+
 export default function App() {
+  const [user, setUser] = useState(undefined);
   const [section, setSection] = useState("dashboard");
   const [data, setData] = useState(null);
   const [downtime, setDowntime] = useState([]);
   const [recon, setRecon] = useState([]);
   const [shift, setShift] = useState("DAY");
+  const [demoMode, setDemoMode] = useState(false);
+
+  const allowDemo = typeof window !== "undefined" && window.location.hostname !== "corpvitagroup.ru";
 
   useEffect(() => {
+    api.authMe().then(current => setUser(current));
+    const expired = () => {
+      setUser(null);
+      setDemoMode(false);
+    };
+    window.addEventListener("vitagroup-auth-expired", expired);
+    return () => window.removeEventListener("vitagroup-auth-expired", expired);
+  }, []);
+
+  const roles = user?.roles || [];
+  const visibleMenu = useMemo(
+    () => menu.filter(item => item.roles.some(role => roles.includes(role))),
+    [roles.join("|")]
+  );
+
+  useEffect(() => {
+    if (user && visibleMenu.length && !visibleMenu.some(item => item.key === section)) {
+      setSection(visibleMenu[0].key);
+    }
+  }, [user, visibleMenu, section]);
+
+  useEffect(() => {
+    if (!user) return;
     const businessDate = data?.shift?.business_date || null;
     Promise.all([
       api.summary(businessDate, shift),
@@ -341,26 +405,65 @@ export default function App() {
       setDowntime(b);
       setRecon(c);
     });
-  }, [shift]);
+  }, [shift, user?.id]);
 
-  const title = useMemo(() => menu.find(([key]) => key === section)?.[1] ?? "Обзор", [section]);
+  const logout = () => {
+    api.logout();
+    setUser(null);
+    setDemoMode(false);
+    setData(null);
+  };
+
+  if (user === undefined) return <div className="loading">Проверка сессии…</div>;
+
+  if (!user) {
+    return <LoginPage
+      allowDemo={allowDemo}
+      onLogin={current => {
+        setUser(current);
+        setDemoMode(false);
+      }}
+      onDemo={() => {
+        setUser({
+          id: "demo",
+          email: "demo@vitagroup.local",
+          full_name: "Демонстрационный пользователь",
+          roles: ["ADMIN"],
+          must_change_password: false
+        });
+        setDemoMode(true);
+      }}
+    />;
+  }
+
+  if (user.must_change_password && !demoMode) {
+    return <PasswordChangeScreen user={user} onChanged={setUser} onLogout={logout} />;
+  }
+
   if (!data) return <div className="loading">Загрузка VITAGROUP OEE…</div>;
+
+  const title = visibleMenu.find(item => item.key === section)?.label ?? "Обзор";
+  const canEditPayroll = roles.includes("ECONOMIST") || roles.includes("ADMIN");
 
   return <div className="app">
     <aside>
       <div className="brand"><div className="brand-mark">VG</div><div><b>VITAGROUP</b><span>Production & OEE</span></div></div>
-      <nav>{menu.map(([key,label]) => <button key={key} className={section===key ? "active" : ""} onClick={() => setSection(key)}>{label}</button>)}</nav>
-      <div className="side-foot"><span className="live-dot" /> Демо-режим</div>
+      <nav>{visibleMenu.map(item => <button key={item.key} className={section===item.key ? "active" : ""} onClick={() => setSection(item.key)}>{item.label}</button>)}</nav>
+      <div className="side-user">
+        <b>{user.full_name || user.email}</b>
+        <span>{demoMode ? "Демонстрационный режим" : roles.join(" · ")}</span>
+        <button onClick={logout}>Выйти</button>
+      </div>
     </aside>
     <main>
       <header>
         <div><p>ООО «ВИТА ГРУПП»</p><h1>{title}</h1></div>
         <div className="controls">
-          {section !== "integrations" && section !== "erp-plan" && <div className="shift-switch">
+          {section !== "integrations" && section !== "erp-plan" && section !== "users" && <div className="shift-switch">
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
-          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
+          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "users" ? "Управление доступом" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
         </div>
       </header>
       <div className="content">
@@ -371,8 +474,9 @@ export default function App() {
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
-        {section === "payroll" && <PayrollPage />}
+        {section === "payroll" && <PayrollPage readOnly={!canEditPayroll} />}
         {section === "integrations" && <Integrations />}
+        {section === "users" && <UserAdminPage />}
       </div>
     </main>
   </div>;
