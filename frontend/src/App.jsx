@@ -1,3 +1,4 @@
+import OEEPage from "./OEEPage";
 import ERPPlan from "./ERPPlan";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
@@ -6,6 +7,7 @@ const menu = [
   ["dashboard", "Обзор"],
   ["production", "Производство"],
   ["erp-plan", "План ERP"],
+  ["oee-detail", "OEE детально"],
   ["downtime", "Простои"],
   ["quality", "ГП и брак"],
   ["reconciliation", "Сверка"],
@@ -373,6 +375,7 @@ export default function App() {
         {section === "dashboard" && <Dashboard data={data} />}
         {section === "production" && <Dashboard data={data} />}
         {section === "erp-plan" && <ERPPlan />}
+        {section === "oee-detail" && <OEEPage businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
