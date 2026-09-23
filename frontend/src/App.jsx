@@ -1,3 +1,4 @@
+import PayrollPage from "./PayrollPage";
 import OEEPage from "./OEEPage";
 import ERPPlan from "./ERPPlan";
 import { useEffect, useMemo, useState } from "react";
@@ -115,10 +116,6 @@ function Downtime({ rows }) {
 
 function Reconciliation({ rows }) {
   return <Table title="Сверка Производство → ОТК → Склад → ERP" columns={["Номенклатура","Оператор","После ОТК","Склад","ERP","Отклонение склад/ERP"]} rows={rows.map(r => [r.product,formatNumber(r.operator),formatNumber(r.qc_good),formatNumber(r.warehouse),formatNumber(r.erp),formatNumber(r.warehouse-r.erp)])} />;
-}
-
-function Payroll({ rows }) {
-  return <Table title="Сдельная заработная плата — предварительный расчет" columns={["Сотрудник","Смен","Подтвержденная выработка","Начислено"]} rows={rows.map(r => [r.employee,r.shifts,formatNumber(r.approved_quantity),formatMoney(r.amount)])} />;
 }
 
 function ManualMappingModal({ row, onClose, onSaved }) {
@@ -331,12 +328,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [downtime, setDowntime] = useState([]);
   const [recon, setRecon] = useState([]);
-  const [payroll, setPayroll] = useState([]);
   const [shift, setShift] = useState("DAY");
-
-  useEffect(() => {
-    api.payroll().then(setPayroll);
-  }, []);
 
   useEffect(() => {
     const businessDate = data?.shift?.business_date || null;
@@ -379,7 +371,7 @@ export default function App() {
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
-        {section === "payroll" && <Payroll rows={payroll} />}
+        {section === "payroll" && <PayrollPage />}
         {section === "integrations" && <Integrations />}
       </div>
     </main>
