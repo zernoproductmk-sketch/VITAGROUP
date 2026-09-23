@@ -37,7 +37,8 @@ const formatNumber = (value) => new Intl.NumberFormat("ru-RU").format(value ?? 0
 const formatMoney = (value) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value ?? 0);
 
 function Metric({ label, value, suffix = "%", note }) {
-  return <div className="metric card"><span>{label}</span><strong>{value}{suffix}</strong>{note && <small>{note}</small>}</div>;
+  const display = value === null || value === undefined ? "—" : `${value}${suffix}`;
+  return <div className="metric card"><span>{label}</span><strong>{display}</strong>{note && <small>{note}</small>}</div>;
 }
 
 function Status({ state }) {
@@ -53,8 +54,12 @@ function IntegrationBadge({ status }) {
 
 function Dashboard({ data }) {
   const p = data.production;
-  const completion = Math.min(100, Math.round((p.operator_output / p.plan) * 100));
+  const completion = p.plan > 0 ? Math.min(100, Math.round((p.operator_output / p.plan) * 100)) : 0;
+  const missingNormRuns = data.data_quality?.missing_norm_runs || 0;
   return <>
+    {missingNormRuns > 0 && <div className="data-warning">
+      <b>OEE пока неполный.</b> Для {missingNormRuns} производственных запусков не найден норматив скорости. Availability и Quality рассчитаны, Performance и итоговый OEE будут доступны после сопоставления нормы.
+    </div>}
     <div className="metric-grid">
       <Metric label="OEE" value={data.kpi.oee} note="предварительно" />
       <Metric label="Availability" value={data.kpi.availability} />
@@ -328,10 +333,21 @@ export default function App() {
   const [shift, setShift] = useState("DAY");
 
   useEffect(() => {
-    Promise.all([api.summary(), api.downtime(), api.reconciliation(), api.payroll()]).then(([a,b,c,d]) => {
-      setData(a); setDowntime(b); setRecon(c); setPayroll(d);
-    });
+    api.payroll().then(setPayroll);
   }, []);
+
+  useEffect(() => {
+    const businessDate = data?.shift?.business_date || null;
+    Promise.all([
+      api.summary(businessDate, shift),
+      api.downtime(businessDate, shift),
+      api.reconciliation(businessDate, shift)
+    ]).then(([a,b,c]) => {
+      setData(a);
+      setDowntime(b);
+      setRecon(c);
+    });
+  }, [shift]);
 
   const title = useMemo(() => menu.find(([key]) => key === section)?.[1] ?? "Обзор", [section]);
   if (!data) return <div className="loading">Загрузка VITAGROUP OEE…</div>;
@@ -350,7 +366,7 @@ export default function App() {
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
-          <div className="date-box"><b>23.09.2026</b><span>{section === "integrations" ? "Администрирование" : section === "erp-plan" ? "План 1С / ERP" : shift==="DAY" ? "09:00–21:00" : "21:00–09:00"}</span></div>
+          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
         </div>
       </header>
       <div className="content">
