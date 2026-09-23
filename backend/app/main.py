@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router
 from .config import settings
+from .coverse_routes import router as coverse_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -20,6 +21,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(coverse_router)
 
 
 @app.get("/health")
@@ -28,4 +30,5 @@ def health():
         "status": "ok",
         "service": "vitagroup-oee-api",
         "environment": settings.environment,
+        "coverse_configured": bool(settings.coverse_api_token),
     }
