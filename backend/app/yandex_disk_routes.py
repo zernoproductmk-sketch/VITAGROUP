@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from .auth import require_roles
 from .config import settings
 from .erp_plan_import import (
     import_yandex_plan,
@@ -13,7 +14,20 @@ router = APIRouter(
 )
 
 
-@router.get("/status")
+@router.get(
+    "/status",
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "PRODUCTION_MANAGER",
+                "ECONOMIST",
+                "MANAGEMENT",
+                "ADMIN",
+            )
+        )
+    ],
+)
 def status():
     return {
         "configured": bool(settings.yandex_plan_public_url.strip()),
@@ -22,7 +36,18 @@ def status():
     }
 
 
-@router.post("/preview")
+@router.post(
+    "/preview",
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
 async def preview():
     try:
         return await yandex_plan_preview()
@@ -30,7 +55,18 @@ async def preview():
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.post("/import")
+@router.post(
+    "/import",
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
 async def import_plan():
     try:
         return await import_yandex_plan()
