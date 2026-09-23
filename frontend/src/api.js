@@ -70,6 +70,40 @@ const unresolvedFallback = [
   }
 ];
 
+const erpPlanSummaryFallback = {
+  counts: { total: 1, runs: 0, orders_only: 1, partial: 1, errors: 0 },
+  last_import: {
+    source_file_name: "Этап производства — пример.xlsx",
+    source_sheet: "Лист1",
+    status: "COMPLETED",
+    rows_read: 1,
+    rows_applied: 1
+  }
+};
+
+const erpPlanRowsFallback = {
+  rows: [{
+    id: "44444444-4444-4444-8444-444444444444",
+    business_date: "2026-09-25",
+    task_id: "Задание ERP",
+    order_no: "Заказ ERP",
+    article: "Артикул",
+    product_name: "Продукция из задания 1С",
+    plan_qty_pcs: 22500,
+    route_equipment_hint: "16/2",
+    resolved_equipment_code: null,
+    shift_code: null,
+    ideal_rate_per_hour: 5921.05,
+    promotion_status: "ORDER_CREATED"
+  }]
+};
+
+const yandexStatusFallback = {
+  configured: false,
+  resource_path_configured: false,
+  last_import: erpPlanSummaryFallback.last_import
+};
+
 const demoCandidates = {
   EMPLOYEE: [
     { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", code: "00452", label: "Оператор — тестовая запись", secondary: "Производство" },
@@ -116,6 +150,12 @@ export const api = {
     { employee: "Петров П.П.", shifts: 13, approved_quantity: 171200, amount: 176840 },
     { employee: "Сидоров А.А.", shifts: 15, approved_quantity: 194600, amount: 191320 }
   ]),
+  erpPlanSummary: () => request("/api/v1/erp-plan/summary", erpPlanSummaryFallback),
+  erpPlanRows: () => request("/api/v1/erp-plan/rows?limit=300", erpPlanRowsFallback),
+  erpPlanPromote: () => request("/api/v1/erp-plan/promote", { demo: true, orders_created_or_updated: 1, runs_created_or_found: 0 }, { method: "POST" }),
+  yandexStatus: () => request("/api/v1/integrations/yandex-disk/status", yandexStatusFallback),
+  yandexPreview: () => request("/api/v1/integrations/yandex-disk/preview", { demo: true, message: "Предпросмотр будет доступен после запуска сервера" }, { method: "POST" }),
+  yandexImport: () => request("/api/v1/integrations/yandex-disk/import", { demo: true, file_name: "Файл плана", status: "DEMO" }, { method: "POST" }),
   integrationDashboard: () => request("/api/v1/reference/dashboard", integrationFallback),
   unresolved: () => request("/api/v1/reference/unresolved?limit=200", { rows: unresolvedFallback }),
   masterSources: () => request("/api/v1/master-data/sources", []),
