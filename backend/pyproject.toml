@@ -9,7 +9,9 @@ dependencies = [
   "pydantic-settings>=2.7,<3.0",
   "sqlalchemy>=2.0,<3.0",
   "psycopg[binary]>=3.2,<4.0",
-  "httpx>=0.28,<1.0"
+  "httpx>=0.28,<1.0",
+  "openpyxl>=3.1,<4.0",
+  "xlrd>=2.0,<3.0"
 ]
 
 [tool.uvicorn]
