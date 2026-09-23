@@ -1,14 +1,27 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from .auth import require_roles
 from .integration_status import integration_dashboard, reference_candidates
 from .manual_mapping import FIELD_MAP, manual_map_event
 from .promotion import promote_resolved_events
 from .resolver import add_alias, resolve_staging_events, unresolved_events
 
-router = APIRouter(prefix="/api/v1/reference", tags=["Reference resolution"])
+router = APIRouter(
+    prefix="/api/v1/reference",
+    tags=["Reference resolution"],
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
 
 
 class AliasInput(BaseModel):
