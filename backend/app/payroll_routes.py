@@ -1,9 +1,10 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from .auth import require_roles
 from .payroll_service import (
     BASIS_LABELS,
     calculate_period,
@@ -16,6 +17,9 @@ from .payroll_service import (
 )
 
 router = APIRouter(prefix="/api/v1/payroll", tags=["Payroll"])
+
+PAYROLL_READ_ROLES = ("ECONOMIST", "MANAGEMENT", "ADMIN")
+PAYROLL_EDIT_ROLES = ("ECONOMIST", "ADMIN")
 
 
 class PeriodInput(BaseModel):
@@ -40,7 +44,10 @@ class AllocationInput(BaseModel):
     entries: list[AllocationEntry]
 
 
-@router.get("/settings")
+@router.get(
+    "/settings",
+    dependencies=[Depends(require_roles(*PAYROLL_READ_ROLES))],
+)
 def settings():
     return {
         "quantity_bases": [
@@ -50,12 +57,18 @@ def settings():
     }
 
 
-@router.get("/periods")
+@router.get(
+    "/periods",
+    dependencies=[Depends(require_roles(*PAYROLL_READ_ROLES))],
+)
 def periods(limit: int = Query(default=24, ge=1, le=100)):
     return {"rows": list_periods(limit)}
 
 
-@router.post("/periods")
+@router.post(
+    "/periods",
+    dependencies=[Depends(require_roles(*PAYROLL_EDIT_ROLES))],
+)
 def period(payload: PeriodInput):
     try:
         return upsert_period(
@@ -68,7 +81,10 @@ def period(payload: PeriodInput):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/preview")
+@router.get(
+    "/preview",
+    dependencies=[Depends(require_roles(*PAYROLL_READ_ROLES))],
+)
 def preview(
     date_from: date,
     date_to: date,
@@ -80,7 +96,10 @@ def preview(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/periods/{period_id}/calculate")
+@router.post(
+    "/periods/{period_id}/calculate",
+    dependencies=[Depends(require_roles(*PAYROLL_EDIT_ROLES))],
+)
 def calculate(period_id: UUID):
     try:
         return calculate_period(period_id)
@@ -90,7 +109,10 @@ def calculate(period_id: UUID):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/rate-options")
+@router.get(
+    "/rate-options",
+    dependencies=[Depends(require_roles(*PAYROLL_READ_ROLES))],
+)
 def payroll_rate_options(
     equipment_id: UUID,
     business_date: date,
@@ -98,7 +120,10 @@ def payroll_rate_options(
     return rate_options(equipment_id, business_date)
 
 
-@router.post("/products/{product_id}/attributes")
+@router.post(
+    "/products/{product_id}/attributes",
+    dependencies=[Depends(require_roles(*PAYROLL_EDIT_ROLES))],
+)
 def product_attributes(
     product_id: UUID,
     payload: ProductAttributesInput,
@@ -114,7 +139,10 @@ def product_attributes(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.post("/runs/{run_id}/allocation")
+@router.post(
+    "/runs/{run_id}/allocation",
+    dependencies=[Depends(require_roles(*PAYROLL_EDIT_ROLES))],
+)
 def allocation(run_id: UUID, payload: AllocationInput):
     try:
         return save_allocation(
