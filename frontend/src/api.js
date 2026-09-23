@@ -206,11 +206,45 @@ export const api = {
     { product: "Арт. 41012", operator: 15600, qc_good: 15340, warehouse: 15180, erp: 15000 }
     ]);
   },
-  payroll: () => request("/api/v1/payroll/summary", [
-    { employee: "Иванов И.И.", shifts: 14, approved_quantity: 183400, amount: 184250 },
-    { employee: "Петров П.П.", shifts: 13, approved_quantity: 171200, amount: 176840 },
-    { employee: "Сидоров А.А.", shifts: 15, approved_quantity: 194600, amount: 191320 }
-  ]),
+  payrollPreview: (dateFrom, dateTo, quantityBasis) => {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (quantityBasis) params.set("quantity_basis", quantityBasis);
+    return request(
+      `/api/v1/payroll/preview?${params.toString()}`,
+      {
+        date_from: dateFrom,
+        date_to: dateTo,
+        quantity_basis: quantityBasis,
+        summary: { runs: 0, rows: 0, ready_rows: 0, blocked_rows: 0, preliminary_rows: 0, ready_amount: 0, blockers: {}, warnings: {} },
+        rows: []
+      }
+    );
+  },
+  payrollPeriods: () => request("/api/v1/payroll/periods", { rows: [] }),
+  payrollCreatePeriod: (payload) => request(
+    "/api/v1/payroll/periods",
+    { id: "demo-period", ...payload, status: "DRAFT" },
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
+  payrollCalculatePeriod: (periodId) => request(
+    `/api/v1/payroll/periods/${periodId}/calculate`,
+    { status: "BLOCKED", period_id: periodId, summary: { blocked_rows: 1 }, rows: [] },
+    { method: "POST" }
+  ),
+  payrollRateOptions: (equipmentId, businessDate) => {
+    const params = new URLSearchParams({ equipment_id: equipmentId, business_date: businessDate });
+    return request(`/api/v1/payroll/rate-options?${params.toString()}`, { product_types: [], print_flags: [], tariff_groups: [], rules: [] });
+  },
+  payrollSaveProductAttributes: (productId, payload) => request(
+    `/api/v1/payroll/products/${productId}/attributes`,
+    { product_id: productId, ...payload, confirmed: true },
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
+  payrollSaveAllocation: (runId, payload) => request(
+    `/api/v1/payroll/runs/${runId}/allocation`,
+    { status: "ok", production_run_id: runId },
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
   erpPlanSummary: () => request("/api/v1/erp-plan/summary", erpPlanSummaryFallback),
   erpPlanRows: () => request("/api/v1/erp-plan/rows?limit=300", erpPlanRowsFallback),
   erpPlanPromote: () => request("/api/v1/erp-plan/promote", { demo: true, orders_created_or_updated: 1, runs_created_or_found: 0 }, { method: "POST" }),
