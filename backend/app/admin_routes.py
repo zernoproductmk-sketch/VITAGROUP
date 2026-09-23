@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from .integration_status import integration_dashboard, reference_candidates
 from .promotion import promote_resolved_events
 from .resolver import add_alias, resolve_staging_events, unresolved_events
 
@@ -15,6 +16,23 @@ class AliasInput(BaseModel):
     external_code: str
     entity_id: UUID
     canonical_label: str | None = None
+
+
+@router.get("/dashboard")
+def dashboard():
+    return integration_dashboard()
+
+
+@router.get("/candidates/{entity_type}")
+def candidates(
+    entity_type: str,
+    q: str = Query(default="", max_length=100),
+    limit: int = Query(default=30, ge=1, le=100),
+):
+    return {
+        "entity_type": entity_type,
+        "rows": reference_candidates(entity_type, q, limit),
+    }
 
 
 @router.post("/resolve")
