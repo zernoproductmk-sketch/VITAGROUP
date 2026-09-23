@@ -157,15 +157,15 @@ def oee_run_detail(run_id: UUID) -> dict | None:
                 """
                 SELECT
                     id,
-                    document_no,
-                    document_date,
+                    erp_document_id,
+                    erp_document_no,
+                    occurred_at,
                     quantity,
-                    status,
-                    source_record_id,
+                    defect_quantity,
                     created_at
                 FROM erp_production_facts
                 WHERE production_run_id = :run_id
-                ORDER BY document_date, created_at
+                ORDER BY occurred_at, created_at
                 """
             ),
             {"run_id": run_id},
