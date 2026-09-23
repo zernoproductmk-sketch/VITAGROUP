@@ -121,20 +121,107 @@ const demoCandidates = {
   ]
 };
 
+const TOKEN_KEY = "vitagroup_access_token";
+
+function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
+function authHeaders(options = {}) {
+  const token = getToken();
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+}
+
+async function strictRequest(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: authHeaders(options)
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = body?.detail || `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+  return body;
+}
+
 async function request(path, fallbackValue, options = {}) {
   try {
-    const response = await fetch(path, {
-      headers: { Accept: "application/json", "Content-Type": "application/json", ...(options.headers || {}) },
-      ...options
-    });
-    if (!response.ok) throw new Error(String(response.status));
-    return await response.json();
-  } catch {
+    return await strictRequest(path, options);
+  } catch (error) {
+    if (error?.status === 401) {
+      setToken(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("vitagroup-auth-expired"));
+      }
+      return fallbackValue;
+    }
     return fallbackValue;
   }
 }
 
 export const api = {
+  hasToken: () => Boolean(getToken()),
+  login: async (email, password) => {
+    const result = await strictRequest("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+    setToken(result.access_token);
+    return result;
+  },
+  authMe: async () => {
+    if (!getToken()) return null;
+    try {
+      return await strictRequest("/api/v1/auth/me");
+    } catch {
+      setToken(null);
+      return null;
+    }
+  },
+  logout: () => setToken(null),
+  changePassword: (currentPassword, newPassword) => strictRequest(
+    "/api/v1/auth/change-password",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword
+      })
+    }
+  ),
+  adminUsers: () => strictRequest("/api/v1/admin/users"),
+  adminMeta: () => strictRequest("/api/v1/admin/users/meta"),
+  adminCreateUser: (payload) => strictRequest("/api/v1/admin/users", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }),
+  adminSetRoles: (userId, roles) => strictRequest(`/api/v1/admin/users/${userId}/roles`, {
+    method: "PUT",
+    body: JSON.stringify({ roles })
+  }),
+  adminSetActive: (userId, isActive) => strictRequest(`/api/v1/admin/users/${userId}/active`, {
+    method: "PUT",
+    body: JSON.stringify({ is_active: isActive })
+  }),
+  adminResetPassword: (userId, newPassword) => strictRequest(`/api/v1/admin/users/${userId}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify({ new_password: newPassword })
+  }),
   oeeRuns: (businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
