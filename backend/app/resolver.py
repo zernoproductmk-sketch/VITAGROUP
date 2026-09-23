@@ -92,7 +92,22 @@ def _find_product(connection, article_code):
         """,
         {"code": article_code},
     )
-    return direct or _resolve_alias(connection, "PRODUCT", article_code)
+    if direct:
+        return direct
+
+    external = _one(
+        connection,
+        """
+        SELECT product_id
+        FROM product_external_codes
+        WHERE source_system = 'COVERSE'
+          AND upper(external_code) = upper(:code)
+          AND is_active = true
+        LIMIT 1
+        """,
+        {"code": article_code},
+    )
+    return external or _resolve_alias(connection, "PRODUCT", article_code)
 
 
 def _find_order(connection, order_no):
