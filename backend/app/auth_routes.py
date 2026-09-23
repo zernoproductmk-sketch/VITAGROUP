@@ -9,6 +9,7 @@ from .auth import (
     change_password,
     create_access_token,
 )
+from .config import settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
@@ -44,7 +45,7 @@ def login(payload: LoginInput, request: Request):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "expires_in": 60 * 60 * 8,
+        "expires_in": settings.auth_access_token_minutes * 60,
         "user": user,
     }
 
