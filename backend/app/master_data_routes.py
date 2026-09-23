@@ -1,9 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from .auth import require_roles
 from .master_data_sync import sync_all_references, sync_reference
 from .reference_sources import REFERENCE_SOURCES
 
-router = APIRouter(prefix="/api/v1/master-data", tags=["Master data"])
+router = APIRouter(
+    prefix="/api/v1/master-data",
+    tags=["Master data"],
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "ECONOMIST",
+                "ADMIN",
+            )
+        )
+    ],
+)
 
 
 @router.get("/sources")
