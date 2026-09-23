@@ -24,6 +24,13 @@ const sourceNames = {
   production_norms: "Нормы выпуска"
 };
 
+const manualFieldConfig = {
+  employee_id: { label: "Сотрудник", entityType: "EMPLOYEE", externalField: "personnel_number" },
+  equipment_id: { label: "Оборудование", entityType: "EQUIPMENT", externalField: "equipment_code" },
+  product_id: { label: "Номенклатура", entityType: "PRODUCT", externalField: "article_code" },
+  production_order_id: { label: "Заказ ERP", entityType: "PRODUCTION_ORDER", externalField: "order_no" }
+};
+
 const formatNumber = (value) => new Intl.NumberFormat("ru-RU").format(value ?? 0);
 const formatMoney = (value) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value ?? 0);
 
@@ -105,11 +112,118 @@ function Payroll({ rows }) {
   return <Table title="Сдельная заработная плата — предварительный расчет" columns={["Сотрудник","Смен","Подтвержденная выработка","Начислено"]} rows={rows.map(r => [r.employee,r.shifts,formatNumber(r.approved_quantity),formatMoney(r.amount)])} />;
 }
 
+function ManualMappingModal({ row, onClose, onSaved }) {
+  const missing = row?.resolution_details?.missing || [];
+  const availableFields = missing.filter(field => {
+    const cfg = manualFieldConfig[field];
+    return cfg && row[cfg.externalField];
+  });
+
+  const [fieldName, setFieldName] = useState(availableFields[0] || "");
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const cfg = manualFieldConfig[fieldName];
+
+  const search = async () => {
+    if (!cfg) return;
+    setBusy(true);
+    setSelected(null);
+    const result = await api.candidates(cfg.entityType, query || row[cfg.externalField] || "");
+    setCandidates(result.rows || []);
+    setBusy(false);
+  };
+
+  useEffect(() => {
+    setQuery(cfg ? String(row[cfg.externalField] || "") : "");
+    setCandidates([]);
+    setSelected(null);
+    setMessage("");
+  }, [fieldName]);
+
+  useEffect(() => {
+    if (cfg) search();
+  }, [fieldName]);
+
+  const save = async () => {
+    if (!cfg || !selected) return;
+    setBusy(true);
+    const result = await api.manualMap({
+      staging_event_id: row.id,
+      field_name: fieldName,
+      entity_id: selected.id,
+      canonical_label: selected.label
+    });
+    setMessage(result?.status === "ok" ? "Сопоставление сохранено. Строка повторно проверена." : "Сопоставление сохранено в демо-режиме.");
+    await onSaved();
+    setBusy(false);
+  };
+
+  return <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-card" onMouseDown={e => e.stopPropagation()}>
+      <div className="modal-head">
+        <div><small>{sourceNames[row.event_type] || row.event_type}</small><h2>Ручное сопоставление</h2></div>
+        <button className="modal-close" onClick={onClose}>×</button>
+      </div>
+
+      <div className="event-summary">
+        <div><span>Дата / смена</span><b>{row.business_date || "—"} · {row.shift_code || "—"}</b></div>
+        <div><span>Таб. №</span><b>{row.personnel_number || "—"}</b></div>
+        <div><span>Линия</span><b>{row.equipment_code || "—"}</b></div>
+        <div><span>Заказ</span><b>{row.order_no || "—"}</b></div>
+        <div><span>Артикул / код</span><b>{row.article_code || "—"}</b></div>
+        <div><span>Талон</span><b>{row.ticket_no || "—"}</b></div>
+      </div>
+
+      {availableFields.length ? <>
+        <label className="form-label">Что сопоставляем</label>
+        <select className="form-control" value={fieldName} onChange={e => setFieldName(e.target.value)}>
+          {availableFields.map(field => <option key={field} value={field}>{manualFieldConfig[field].label}</option>)}
+        </select>
+
+        <div className="external-code-box">
+          <span>Внешний код Coverse</span>
+          <b>{cfg ? row[cfg.externalField] : "—"}</b>
+        </div>
+
+        <label className="form-label">Поиск в справочнике</label>
+        <div className="search-row">
+          <input className="form-control" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} placeholder="Введите код или наименование" />
+          <button className="btn secondary" onClick={search} disabled={busy}>Найти</button>
+        </div>
+
+        <div className="candidate-list">
+          {candidates.length === 0 && !busy && <div className="empty-state">Кандидаты не найдены.</div>}
+          {candidates.map(item => <button key={item.id} className={`candidate ${selected?.id === item.id ? "selected" : ""}`} onClick={() => setSelected(item)}>
+            <div><b>{item.code}</b><span>{item.label}</span></div>
+            <small>{item.secondary || ""}</small>
+          </button>)}
+        </div>
+
+        {message && <div className="notice">{message}</div>}
+
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={onClose}>Закрыть</button>
+          <button className="btn primary" disabled={!selected || busy} onClick={save}>Сохранить соответствие</button>
+        </div>
+      </> : <div className="mapping-blocked">
+        <b>В этой строке нет поля, которое можно сопоставить вручную безопасно.</b>
+        <p>Остались системные связи: смена или производственный запуск. Они должны определяться из даты/смены и плана ERP, а не назначаться вручную.</p>
+        <div className="modal-actions"><button className="btn ghost" onClick={onClose}>Закрыть</button></div>
+      </div>}
+    </div>
+  </div>;
+}
+
 function Integrations() {
   const [dashboard, setDashboard] = useState(null);
   const [unresolved, setUnresolved] = useState([]);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [mappingRow, setMappingRow] = useState(null);
 
   const refresh = async () => {
     const [d, u] = await Promise.all([api.integrationDashboard(), api.unresolved()]);
@@ -135,10 +249,7 @@ function Integrations() {
 
   return <>
     <div className="integration-toolbar card">
-      <div>
-        <h2>Контур интеграций</h2>
-        <p>Coverse → staging → сопоставление → рабочие факты</p>
-      </div>
+      <div><h2>Контур интеграций</h2><p>Coverse → staging → сопоставление → рабочие факты</p></div>
       <div className="action-row">
         <button className="btn secondary" disabled={!!busy} onClick={() => run("Справочники", api.syncMasterData)}>Синхронизировать справочники</button>
         <button className="btn secondary" disabled={!!busy} onClick={() => run("Сопоставление", api.resolveReferences)}>Разрешить связи</button>
@@ -158,10 +269,7 @@ function Integrations() {
       <div className="panel-head"><h2>Справочники</h2><span>{masters.length} источников</span></div>
       <div className="source-list">
         {masters.map(([key, item]) => <div className="source-row" key={key}>
-          <div className="source-main">
-            <b>{sourceNames[key] || key}</b>
-            <span>{item.message || `Прочитано: ${formatNumber(item.rows_read || 0)} · применено: ${formatNumber(item.rows_applied || 0)}`}</span>
-          </div>
+          <div className="source-main"><b>{sourceNames[key] || key}</b><span>{item.message || `Прочитано: ${formatNumber(item.rows_read || 0)} · применено: ${formatNumber(item.rows_applied || 0)}`}</span></div>
           <IntegrationBadge status={item.status} />
           <button className="btn ghost" disabled={!!busy} onClick={() => run(sourceNames[key] || key, () => api.syncMasterSource(key))}>Повторить</button>
         </div>)}
@@ -172,10 +280,7 @@ function Integrations() {
       <div className="panel-head"><h2>Оперативные формы Coverse</h2><span>{events.length} источников</span></div>
       <div className="source-list">
         {events.map(([key, item]) => <div className="source-row event-source" key={key}>
-          <div className="source-main">
-            <b>{sourceNames[key] || key}</b>
-            <span>Всего: {formatNumber(item.total)} · RESOLVED: {formatNumber(item.resolved)} · PARTIAL: {formatNumber(item.partial)} · ошибок: {formatNumber(item.errors)}</span>
-          </div>
+          <div className="source-main"><b>{sourceNames[key] || key}</b><span>Всего: {formatNumber(item.total)} · RESOLVED: {formatNumber(item.resolved)} · PARTIAL: {formatNumber(item.partial)} · ошибок: {formatNumber(item.errors)}</span></div>
           <div className="event-progress"><i style={{width: `${item.total ? Math.round((item.resolved / item.total) * 100) : 0}%`}} /></div>
           <button className="btn ghost" disabled={!!busy} onClick={() => run(sourceNames[key] || key, () => api.syncCoverseSource(key))}>Синхронизировать</button>
         </div>)}
@@ -186,7 +291,7 @@ function Integrations() {
       <div className="panel-head"><h2>Требуют сопоставления</h2><span>{unresolved.length} строк</span></div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Источник</th><th>Дата</th><th>Смена</th><th>Таб. №</th><th>Линия</th><th>Заказ</th><th>Артикул/код</th><th>Талон</th><th>Статус</th></tr></thead>
+          <thead><tr><th>Источник</th><th>Дата</th><th>Смена</th><th>Таб. №</th><th>Линия</th><th>Заказ</th><th>Артикул/код</th><th>Талон</th><th>Статус</th><th></th></tr></thead>
           <tbody>{unresolved.map((r, i) => <tr key={r.id || i}>
             <td>{sourceNames[r.event_type] || r.event_type}</td>
             <td>{r.business_date || "—"}</td>
@@ -197,11 +302,14 @@ function Integrations() {
             <td>{r.article_code || "—"}</td>
             <td>{r.ticket_no || "—"}</td>
             <td><IntegrationBadge status={r.resolution_status} /></td>
+            <td><button className="btn secondary" onClick={() => setMappingRow(r)}>Сопоставить</button></td>
           </tr>)}</tbody>
         </table>
       </div>
-      <div className="admin-note">Ручное сопоставление конкретного кода будет активировано после запуска PostgreSQL на REG.Cloud: система покажет кандидатов из сотрудников, оборудования, номенклатуры и заказов ERP.</div>
+      <div className="admin-note">После сохранения соответствия внешний код запоминается. При следующих загрузках строки с тем же кодом будут разрешаться автоматически.</div>
     </section>
+
+    {mappingRow && <ManualMappingModal row={mappingRow} onClose={() => setMappingRow(null)} onSaved={refresh} />}
   </>;
 }
 
