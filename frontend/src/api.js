@@ -135,16 +135,34 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
-  summary: () => request("/api/v1/dashboard/summary", fallback),
-  downtime: () => request("/api/v1/downtime", [
+  summary: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/api/v1/dashboard/summary${suffix}`, fallback);
+  },
+  downtime: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/api/v1/downtime${suffix}`, [
     { equipment: "LINE-02", start: "12:34", end: null, minutes: 57, reason: "Ожидание материала", planned: false },
     { equipment: "LINE-03", start: "10:11", end: "10:29", minutes: 18, reason: "Переналадка", planned: true }
-  ]),
-  reconciliation: () => request("/api/v1/reconciliation", [
+    ]);
+  },
+  reconciliation: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/api/v1/reconciliation${suffix}`, [
     { product: "Арт. 34001", operator: 12400, qc_good: 12280, warehouse: 12240, erp: 12240 },
     { product: "Арт. 37008", operator: 8200, qc_good: 8170, warehouse: 8150, erp: 8100 },
     { product: "Арт. 41012", operator: 15600, qc_good: 15340, warehouse: 15180, erp: 15000 }
-  ]),
+    ]);
+  },
   payroll: () => request("/api/v1/payroll/summary", [
     { employee: "Иванов И.И.", shifts: 14, approved_quantity: 183400, amount: 184250 },
     { employee: "Петров П.П.", shifts: 13, approved_quantity: 171200, amount: 176840 },
