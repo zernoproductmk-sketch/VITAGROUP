@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
     business_timezone: str = "Europe/Moscow"
 
+    # Authentication. AUTH_JWT_SECRET must be changed in production.
+    auth_jwt_secret: str = "change-this-before-deploy"
+    auth_access_token_minutes: int = 480
+    auth_max_failed_attempts: int = 5
+    auth_lock_minutes: int = 15
+
     # Coverse
     coverse_api_token: str = ""
     coverse_api_base_url: str = "https://api.coverse.team"
