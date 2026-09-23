@@ -1,8 +1,9 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .auth import require_roles
 from .oee_detail_service import oee_run_detail
 from .oee_service import (
     downtime_rows,
@@ -11,7 +12,22 @@ from .oee_service import (
     reconciliation_rows,
 )
 
-router = APIRouter(prefix="/api/v1")
+MONITOR_ROLES = (
+    "OPERATOR",
+    "ACCOUNTANT_PRODUCTION",
+    "WAREHOUSE",
+    "QC",
+    "SHIFT_MASTER",
+    "PRODUCTION_MANAGER",
+    "ECONOMIST",
+    "MANAGEMENT",
+    "ADMIN",
+)
+
+router = APIRouter(
+    prefix="/api/v1",
+    dependencies=[Depends(require_roles(*MONITOR_ROLES))],
+)
 
 
 def _safe_shift_call(func, business_date, shift_code):
@@ -90,4 +106,3 @@ def reconciliation(
         business_date,
         shift_code,
     )
-
