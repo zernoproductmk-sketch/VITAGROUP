@@ -151,7 +151,7 @@ function AllocationModal({ rows, onClose, onSaved }) {
   </div>;
 }
 
-export default function PayrollPage() {
+export default function PayrollPage({ readOnly = false }) {
   const defaults = defaultPeriod();
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
@@ -233,7 +233,7 @@ export default function PayrollPage() {
           </select>
         </label>
         <button className="btn secondary" disabled={!!busy} onClick={loadPreview}>Предварительный расчет</button>
-        <button className="btn primary" disabled={!!busy || !basis || (summary.blocked_rows || 0) > 0} onClick={createAndCalculate}>Зафиксировать расчет</button>
+        {!readOnly && <button className="btn primary" disabled={!!busy || !basis || (summary.blocked_rows || 0) > 0} onClick={createAndCalculate}>Зафиксировать расчет</button>}
       </div>
     </div>
 
@@ -270,8 +270,8 @@ export default function PayrollPage() {
                 <td><b>{row.amount === null || row.amount === undefined ? "—" : money.format(row.amount)}</b></td>
                 <td><span className={`status ${statusClass(row.status)}`}>{statusLabels[row.status] || row.status}</span>{row.preliminary && <small>Запуск не VERIFIED</small>}</td>
                 <td>
-                  {row.status === "MISSING_PRODUCT_ATTRIBUTES" && <button className="btn secondary" onClick={() => setAttributeRow(row)}>Признаки</button>}
-                  {row.status === "NEEDS_ALLOCATION" && <button className="btn secondary" onClick={() => setAllocationRows(groupedByRun[row.production_run_id])}>Распределить</button>}
+                  {!readOnly && row.status === "MISSING_PRODUCT_ATTRIBUTES" && <button className="btn secondary" onClick={() => setAttributeRow(row)}>Признаки</button>}
+                  {!readOnly && row.status === "NEEDS_ALLOCATION" && <button className="btn secondary" onClick={() => setAllocationRows(groupedByRun[row.production_run_id])}>Распределить</button>}
                 </td>
               </tr>)}
               {rows.length === 0 && <tr><td colSpan="11"><div className="empty-state">За выбранный период производственных запусков нет.</div></td></tr>}
