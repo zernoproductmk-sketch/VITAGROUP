@@ -1,9 +1,11 @@
+import ERPPlan from "./ERPPlan";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 
 const menu = [
   ["dashboard", "Обзор"],
   ["production", "Производство"],
+  ["erp-plan", "План ERP"],
   ["downtime", "Простои"],
   ["quality", "ГП и брак"],
   ["reconciliation", "Сверка"],
@@ -344,16 +346,17 @@ export default function App() {
       <header>
         <div><p>ООО «ВИТА ГРУПП»</p><h1>{title}</h1></div>
         <div className="controls">
-          {section !== "integrations" && <div className="shift-switch">
+          {section !== "integrations" && section !== "erp-plan" && <div className="shift-switch">
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
-          <div className="date-box"><b>23.09.2026</b><span>{section === "integrations" ? "Администрирование" : shift==="DAY" ? "09:00–21:00" : "21:00–09:00"}</span></div>
+          <div className="date-box"><b>23.09.2026</b><span>{section === "integrations" ? "Администрирование" : section === "erp-plan" ? "План 1С / ERP" : shift==="DAY" ? "09:00–21:00" : "21:00–09:00"}</span></div>
         </div>
       </header>
       <div className="content">
         {section === "dashboard" && <Dashboard data={data} />}
         {section === "production" && <Dashboard data={data} />}
+        {section === "erp-plan" && <ERPPlan />}
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
