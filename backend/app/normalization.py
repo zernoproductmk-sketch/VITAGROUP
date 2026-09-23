@@ -111,12 +111,13 @@ def derive_shift(
         shift_start = None
         shift_end = None
 
-    occurred_at = None
-    if t is not None:
-        calendar_date = d
-        if date_is_business_date and code == "NIGHT" and t < time(9, 0):
-            calendar_date = d + timedelta(days=1)
-        occurred_at = datetime.combine(calendar_date, t, tzinfo=tz)
+    occurred_at = combine_event_time(
+        d,
+        t,
+        business_date=business_date,
+        shift_code=code,
+        date_is_business_date=date_is_business_date,
+    )
 
     return {
         "business_date": business_date,
@@ -125,6 +126,44 @@ def derive_shift(
         "shift_end": shift_end,
         "occurred_at": occurred_at,
     }
+
+
+def combine_event_time(
+    source_date: date | None,
+    source_time: time | None,
+    *,
+    business_date: date | None,
+    shift_code: str | None,
+    date_is_business_date: bool,
+) -> datetime | None:
+    if source_date is None or source_time is None:
+        return None
+
+    calendar_date = source_date
+    if date_is_business_date and shift_code == "NIGHT" and source_time < time(9, 0):
+        calendar_date = source_date + timedelta(days=1)
+
+    return datetime.combine(
+        calendar_date,
+        source_time,
+        tzinfo=ZoneInfo(settings.business_timezone),
+    )
+
+
+def normalized_personnel_number(value) -> str | None:
+    if value is None:
+        return None
+    text = "".join(ch for ch in str(value).strip() if ch.isdigit())
+    if not text:
+        return None
+    return text.zfill(5)
+
+
+def normalized_code(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text.upper() if text else None
 
 
 def normalized_external_key(row: dict) -> str:
@@ -140,27 +179,48 @@ def normalized_external_key(row: dict) -> str:
 
 def normalize_coverse_event(source_key: str, row: dict, date_is_business_date: bool) -> dict:
     response_at = parse_response_datetime(row.get("response_at"))
+    ended_at = None
+    good_quantity = None
 
     if source_key == "downtime":
-        shift = derive_shift(
-            row.get("shift_date"),
-            row.get("time_from"),
-            date_is_business_date=True,
-        )
+        shift = derive_shift(row.get("shift_date"), row.get("time_from"), date_is_business_date=True)
+        end_time = parse_time(row.get("time_to"))
+        end_date = parse_date(row.get("shift_date"))
+        if shift and end_date and end_time:
+            ended_at = combine_event_time(
+                end_date,
+                end_time,
+                business_date=shift["business_date"],
+                shift_code=shift["shift_code"],
+                date_is_business_date=True,
+            )
+            if ended_at and shift["occurred_at"] and ended_at <= shift["occurred_at"]:
+                ended_at += timedelta(days=1)
         quantity = None
         secondary_quantity = None
         article_code = None
         order_no = None
+
     elif source_key == "production_output":
-        shift = derive_shift(
-            row.get("shift_date"),
-            row.get("started_at"),
-            date_is_business_date=True,
-        )
-        quantity = parse_decimal(row.get("good_product_qty"))
+        shift = derive_shift(row.get("shift_date"), row.get("started_at"), date_is_business_date=True)
+        end_time = parse_time(row.get("ended_at"))
+        end_date = parse_date(row.get("shift_date"))
+        if shift and end_date and end_time:
+            ended_at = combine_event_time(
+                end_date,
+                end_time,
+                business_date=shift["business_date"],
+                shift_code=shift["shift_code"],
+                date_is_business_date=True,
+            )
+            if ended_at and shift["occurred_at"] and ended_at <= shift["occurred_at"]:
+                ended_at += timedelta(days=1)
+        quantity = parse_decimal(row.get("counter_qty"))
         secondary_quantity = parse_decimal(row.get("defect_qty"))
+        good_quantity = parse_decimal(row.get("good_product_qty"))
         article_code = None
-        order_no = row.get("order_no")
+        order_no = normalized_code(row.get("order_no"))
+
     elif source_key == "qc_defects":
         shift = derive_shift(
             row.get("shift_date"),
@@ -172,18 +232,17 @@ def normalize_coverse_event(source_key: str, row: dict, date_is_business_date: b
         secondary_quantity = None
         article_code = None
         order_no = None
+
     elif source_key in {"warehouse", "accountant"}:
-        shift = derive_shift(
-            row.get("calendar_date"),
-            row.get("accepted_at"),
-            date_is_business_date=False,
-        )
+        shift = derive_shift(row.get("calendar_date"), row.get("accepted_at"), date_is_business_date=False)
         packages = parse_decimal(row.get("packages_qty"))
         per_package = parse_decimal(row.get("qty_per_package"))
         quantity = packages * per_package if packages is not None and per_package is not None else None
         secondary_quantity = packages
-        article_code = row.get("article_code")
+        good_quantity = quantity
+        article_code = normalized_code(row.get("article_code"))
         order_no = None
+
     else:
         shift = None
         quantity = None
@@ -202,12 +261,14 @@ def normalize_coverse_event(source_key: str, row: dict, date_is_business_date: b
         "business_date": shift.get("business_date") if shift else None,
         "shift_code": shift.get("shift_code") if shift else None,
         "occurred_at": shift.get("occurred_at") if shift else response_at,
-        "personnel_number": row.get("personnel_number"),
-        "equipment_code": row.get("equipment_code"),
+        "ended_at": ended_at,
+        "personnel_number": normalized_personnel_number(row.get("personnel_number")),
+        "equipment_code": normalized_code(row.get("equipment_code")),
         "order_no": order_no,
         "article_code": article_code,
         "ticket_no": row.get("ticket_no"),
         "quantity": quantity,
         "secondary_quantity": secondary_quantity,
+        "good_quantity": good_quantity,
         "payload": row,
     }
