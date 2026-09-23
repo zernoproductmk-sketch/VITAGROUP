@@ -202,3 +202,81 @@ def set_user_active(user_id: UUID, is_active: bool) -> dict:
         "user_id": str(user_id),
         "is_active": is_active,
     }
+
+
+def list_admin_meta() -> dict:
+    with engine.begin() as connection:
+        roles = [
+            dict(row)
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT code, name
+                    FROM roles
+                    ORDER BY name
+                    """
+                )
+            ).mappings()
+        ]
+
+        employees = [
+            {
+                **dict(row),
+                "id": str(row["id"]),
+            }
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT
+                        e.id,
+                        e.personnel_number,
+                        e.full_name,
+                        e.position_name,
+                        e.department_name,
+                        u.id AS user_id
+                    FROM employees e
+                    LEFT JOIN users u ON u.employee_id = e.id
+                    WHERE e.is_active = true
+                    ORDER BY e.full_name
+                    """
+                )
+            ).mappings()
+        ]
+
+    return {
+        "roles": roles,
+        "employees": employees,
+    }
+
+
+def reset_user_password(user_id: UUID, new_password: str) -> dict:
+    password_value = hash_password(new_password)
+    with engine.begin() as connection:
+        updated = connection.execute(
+            text(
+                """
+                UPDATE users
+                SET password_hash = :password_hash,
+                    must_change_password = true,
+                    failed_login_attempts = 0,
+                    locked_until = NULL,
+                    password_changed_at = now(),
+                    updated_at = now()
+                WHERE id = :id
+                RETURNING id
+                """
+            ),
+            {
+                "id": user_id,
+                "password_hash": password_value,
+            },
+        ).scalar_one_or_none()
+
+        if not updated:
+            raise LookupError("Пользователь не найден")
+
+    return {
+        "status": "ok",
+        "user_id": str(user_id),
+        "must_change_password": True,
+    }
