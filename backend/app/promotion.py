@@ -46,7 +46,9 @@ def promote_resolved_events(limit: int = 500) -> dict:
                                 :run_id, :occurred_at, :quantity, 'INCREMENT',
                                 'RECORDED', 'COVERSE', :source_record_id, :comment
                             )
-                            ON CONFLICT (source_system, source_record_id) DO UPDATE SET
+                            ON CONFLICT (source_system, source_record_id)
+                            WHERE source_record_id IS NOT NULL
+                            DO UPDATE SET
                                 production_run_id = EXCLUDED.production_run_id,
                                 occurred_at = EXCLUDED.occurred_at,
                                 quantity = EXCLUDED.quantity,
@@ -61,6 +63,35 @@ def promote_resolved_events(limit: int = 500) -> dict:
                             "comment": "Импорт Coverse: счетчик/выпуск производства",
                         },
                     )
+                    connection.execute(
+                        text(
+                            """
+                            UPDATE production_runs
+                            SET actual_start_at = CASE
+                                    WHEN actual_start_at IS NULL THEN :started_at
+                                    ELSE LEAST(actual_start_at, :started_at)
+                                END,
+                                actual_end_at = CASE
+                                    WHEN :ended_at IS NULL THEN actual_end_at
+                                    WHEN actual_end_at IS NULL THEN :ended_at
+                                    ELSE GREATEST(actual_end_at, :ended_at)
+                                END,
+                                status = CASE
+                                    WHEN status = 'VERIFIED' THEN status
+                                    WHEN :ended_at IS NULL THEN 'RUNNING'
+                                    ELSE 'COMPLETED'
+                                END,
+                                updated_at = now()
+                            WHERE id = :run_id
+                            """
+                        ),
+                        {
+                            "run_id": event["production_run_id"],
+                            "started_at": event["occurred_at"],
+                            "ended_at": event.get("ended_at"),
+                        },
+                    )
+
                     if event.get("secondary_quantity") is not None:
                         defect_source_id = f"{source_record_id}|OPERATOR_DEFECT"
                         connection.execute(
@@ -75,7 +106,9 @@ def promote_resolved_events(limit: int = 500) -> dict:
                                     'OPERATOR', false, 'COVERSE',
                                     :source_record_id, :comment
                                 )
-                                ON CONFLICT (source_system, source_record_id) DO UPDATE SET
+                                ON CONFLICT (source_system, source_record_id)
+                            WHERE source_record_id IS NOT NULL
+                            DO UPDATE SET
                                     production_run_id = EXCLUDED.production_run_id,
                                     occurred_at = EXCLUDED.occurred_at,
                                     quantity = EXCLUDED.quantity
@@ -103,7 +136,9 @@ def promote_resolved_events(limit: int = 500) -> dict:
                                 'QC', true, 'COVERSE',
                                 :source_record_id, :comment
                             )
-                            ON CONFLICT (source_system, source_record_id) DO UPDATE SET
+                            ON CONFLICT (source_system, source_record_id)
+                            WHERE source_record_id IS NOT NULL
+                            DO UPDATE SET
                                 production_run_id = EXCLUDED.production_run_id,
                                 occurred_at = EXCLUDED.occurred_at,
                                 quantity = EXCLUDED.quantity,
@@ -132,7 +167,9 @@ def promote_resolved_events(limit: int = 500) -> dict:
                                 :started_at, :ended_at, false,
                                 'COVERSE', :source_record_id, :comment
                             )
-                            ON CONFLICT (source_system, source_record_id) DO UPDATE SET
+                            ON CONFLICT (source_system, source_record_id)
+                            WHERE source_record_id IS NOT NULL
+                            DO UPDATE SET
                                 production_run_id = EXCLUDED.production_run_id,
                                 equipment_id = EXCLUDED.equipment_id,
                                 shift_id = EXCLUDED.shift_id,
@@ -165,7 +202,9 @@ def promote_resolved_events(limit: int = 500) -> dict:
                                 :received_at, :quantity, :document_no,
                                 'COVERSE', :source_record_id
                             )
-                            ON CONFLICT (source_system, source_record_id) DO UPDATE SET
+                            ON CONFLICT (source_system, source_record_id)
+                            WHERE source_record_id IS NOT NULL
+                            DO UPDATE SET
                                 production_run_id = EXCLUDED.production_run_id,
                                 shift_id = EXCLUDED.shift_id,
                                 product_id = EXCLUDED.product_id,
