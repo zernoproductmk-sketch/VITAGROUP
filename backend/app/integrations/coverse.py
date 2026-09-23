@@ -12,6 +12,7 @@ class CoverseSource:
     document_id: str
     sheet_name: str
     range_a1: str
+    date_is_business_date: bool
     columns: dict[str, int]
 
 
@@ -21,6 +22,7 @@ SOURCES: dict[str, CoverseSource] = {
         document_id="1c2ecf5f-4698-43ef-98bc-b9e50ef4950e",
         sheet_name="Лист 1",
         range_a1="A:I",
+        date_is_business_date=True,
         columns={
             "response_at": 0,
             "personnel_number": 1,
@@ -38,6 +40,7 @@ SOURCES: dict[str, CoverseSource] = {
         document_id="65983c39-1ab2-485e-847e-2b739ee46e5a",
         sheet_name="Лист 1",
         range_a1="A:L",
+        date_is_business_date=True,
         columns={
             "response_at": 0,
             "personnel_number": 1,
@@ -58,6 +61,7 @@ SOURCES: dict[str, CoverseSource] = {
         document_id="bab2fb73-e435-4c3a-8d93-e5a24cba39a9",
         sheet_name="Лист 1",
         range_a1="A:F",
+        date_is_business_date=True,
         columns={
             "response_at": 0,
             "personnel_number": 1,
@@ -71,15 +75,37 @@ SOURCES: dict[str, CoverseSource] = {
         key="warehouse",
         document_id="8e3e432c-7489-42e3-b45d-488c64219f7f",
         sheet_name="Лист 1",
-        range_a1="A:Z",
-        columns={},
+        range_a1="A:H",
+        date_is_business_date=False,
+        columns={
+            "response_at": 0,
+            "ticket_no": 1,
+            "personnel_number": 2,
+            "calendar_date": 3,
+            "accepted_at": 4,
+            "article_code": 5,
+            "packages_qty": 6,
+            "qty_per_package": 7,
+        },
     ),
     "accountant": CoverseSource(
         key="accountant",
         document_id="64add4fb-f8a0-417d-b813-93257c3f9f5d",
         sheet_name="Лист 1",
-        range_a1="A:Z",
-        columns={},
+        range_a1="A:J",
+        date_is_business_date=False,
+        columns={
+            "response_at": 0,
+            "ticket_no_fallback": 1,
+            "personnel_number": 2,
+            "equipment_code": 3,
+            "calendar_date": 4,
+            "accepted_at": 5,
+            "article_code": 6,
+            "packages_qty": 7,
+            "qty_per_package": 8,
+            "ticket_no": 9,
+        },
     ),
 }
 
@@ -106,21 +132,25 @@ def normalize_rows(source: CoverseSource, cells: list[list[Any]]) -> list[dict[s
             "source_document_id": source.document_id,
             "source_sheet": source.sheet_name,
             "source_row": row_number,
+            "source_key": source.key,
         }
         for field_name, index in source.columns.items():
             item[field_name] = _cell_value(row[index]) if index < len(row) else None
+
+        if source.key == "accountant" and not item.get("ticket_no"):
+            item["ticket_no"] = item.get("ticket_no_fallback")
+
         rows.append(item)
     return rows
 
 
 class CoverseClient:
     """
-    REST adapter for the production server.
+    Coverse Tables REST adapter.
 
-    The API token is supplied through COVERSE_API_TOKEN.
-    Exact endpoint paths are configurable because Coverse can evolve its API
-    independently of this application. The application never stores the token
-    in Git or in PostgreSQL.
+    The real API token is provided only through the server environment.
+    Base URL and read-range path remain configurable so they can be set to the
+    exact values from the Coverse API portal without changing application code.
     """
 
     def __init__(self) -> None:
@@ -141,12 +171,7 @@ class CoverseClient:
 
     async def read_source(self, key: str) -> list[dict[str, Any]]:
         source = SOURCES[key]
-
-        # Keep the path configurable. It will be finalized against the
-        # Coverse API portal when the production token is issued.
-        endpoint = settings.coverse_read_range_path.format(
-            document_id=source.document_id
-        )
+        endpoint = settings.coverse_read_range_path.format(document_id=source.document_id)
         response = await self.client.get(
             endpoint,
             params={"range": f"'{source.sheet_name}'!{source.range_a1}"},
