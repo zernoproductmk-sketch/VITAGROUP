@@ -1,0 +1,163 @@
+from dataclasses import dataclass
+from typing import Any
+
+import httpx
+
+from ..config import settings
+
+
+@dataclass(frozen=True)
+class CoverseSource:
+    key: str
+    document_id: str
+    sheet_name: str
+    range_a1: str
+    columns: dict[str, int]
+
+
+SOURCES: dict[str, CoverseSource] = {
+    "downtime": CoverseSource(
+        key="downtime",
+        document_id="1c2ecf5f-4698-43ef-98bc-b9e50ef4950e",
+        sheet_name="Лист 1",
+        range_a1="A:I",
+        columns={
+            "response_at": 0,
+            "personnel_number": 1,
+            "equipment_code": 2,
+            "shift_date": 3,
+            "time_from": 4,
+            "time_to": 5,
+            "reason": 6,
+            "master": 7,
+            "comment": 8,
+        },
+    ),
+    "production_output": CoverseSource(
+        key="production_output",
+        document_id="65983c39-1ab2-485e-847e-2b739ee46e5a",
+        sheet_name="Лист 1",
+        range_a1="A:L",
+        columns={
+            "response_at": 0,
+            "personnel_number": 1,
+            "shift_date": 2,
+            "order_no": 3,
+            "started_at": 4,
+            "ended_at": 5,
+            "counter_qty": 6,
+            "defect_qty": 7,
+            "defect_kg": 8,
+            "good_product_qty": 9,
+            "boxes_qty": 10,
+            "pallets_qty": 11,
+        },
+    ),
+    "qc_defects": CoverseSource(
+        key="qc_defects",
+        document_id="bab2fb73-e435-4c3a-8d93-e5a24cba39a9",
+        sheet_name="Лист 1",
+        range_a1="A:F",
+        columns={
+            "response_at": 0,
+            "personnel_number": 1,
+            "shift_date": 2,
+            "shift": 3,
+            "accepted_at": 4,
+            "defect_qty": 5,
+        },
+    ),
+    "warehouse": CoverseSource(
+        key="warehouse",
+        document_id="8e3e432c-7489-42e3-b45d-488c64219f7f",
+        sheet_name="Лист 1",
+        range_a1="A:Z",
+        columns={},
+    ),
+    "accountant": CoverseSource(
+        key="accountant",
+        document_id="64add4fb-f8a0-417d-b813-93257c3f9f5d",
+        sheet_name="Лист 1",
+        range_a1="A:Z",
+        columns={},
+    ),
+}
+
+
+def _cell_value(cell: Any) -> Any:
+    if cell is None:
+        return None
+    if isinstance(cell, dict):
+        return cell.get("formatted") or cell.get("value")
+    return cell
+
+
+def normalize_rows(source: CoverseSource, cells: list[list[Any]]) -> list[dict[str, Any]]:
+    if not cells:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for row_number, row in enumerate(cells[1:], start=2):
+        if not row or all(_cell_value(cell) in (None, "") for cell in row):
+            continue
+
+        item: dict[str, Any] = {
+            "source_system": "COVERSE",
+            "source_document_id": source.document_id,
+            "source_sheet": source.sheet_name,
+            "source_row": row_number,
+        }
+        for field_name, index in source.columns.items():
+            item[field_name] = _cell_value(row[index]) if index < len(row) else None
+        rows.append(item)
+    return rows
+
+
+class CoverseClient:
+    """
+    REST adapter for the production server.
+
+    The API token is supplied through COVERSE_API_TOKEN.
+    Exact endpoint paths are configurable because Coverse can evolve its API
+    independently of this application. The application never stores the token
+    in Git or in PostgreSQL.
+    """
+
+    def __init__(self) -> None:
+        if not settings.coverse_api_token:
+            raise RuntimeError("COVERSE_API_TOKEN is not configured")
+
+        self.client = httpx.AsyncClient(
+            base_url=settings.coverse_api_base_url.rstrip("/"),
+            timeout=30,
+            headers={
+                "Authorization": f"Bearer {settings.coverse_api_token}",
+                "Accept": "application/json",
+            },
+        )
+
+    async def close(self) -> None:
+        await self.client.aclose()
+
+    async def read_source(self, key: str) -> list[dict[str, Any]]:
+        source = SOURCES[key]
+
+        # Keep the path configurable. It will be finalized against the
+        # Coverse API portal when the production token is issued.
+        endpoint = settings.coverse_read_range_path.format(
+            document_id=source.document_id
+        )
+        response = await self.client.get(
+            endpoint,
+            params={"range": f"'{source.sheet_name}'!{source.range_a1}"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        cells = (
+            payload.get("values", {}).get("cells")
+            or payload.get("cells")
+            or payload.get("values")
+            or []
+        )
+        return normalize_rows(source, cells)
