@@ -19,9 +19,36 @@ const fallback = {
   ]
 };
 
-async function request(path, fallbackValue) {
+const integrationFallback = {
+  event_sources: {
+    downtime: { total: 1, resolved: 0, partial: 1, errors: 0, promoted: 0 },
+    production_output: { total: 1, resolved: 0, partial: 1, errors: 0, promoted: 0 },
+    qc_defects: { total: 1, resolved: 0, partial: 1, errors: 0, promoted: 0 },
+    warehouse: { total: 1, resolved: 0, partial: 1, errors: 0, promoted: 0 },
+    accountant: { total: 1, resolved: 0, partial: 1, errors: 0, promoted: 0 }
+  },
+  master_sources: {
+    employees: { status: "READY", rows_read: 0, rows_applied: 0 },
+    equipment: { status: "READY", rows_read: 0, rows_applied: 0 },
+    products: { status: "READY", rows_read: 0, rows_applied: 0 },
+    tariffs: { status: "READY", rows_read: 0, rows_applied: 0 },
+    production_norms: { status: "BLOCKED", rows_read: 26, rows_applied: 0, message: "Источник норм требует исправления структуры" }
+  },
+  totals: { unresolved: 5, open_resolution_issues: 5, open_master_issues: 1 }
+};
+
+const unresolvedFallback = [
+  { id: "demo-1", event_type: "production_output", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00452", order_no: "430.83.1", resolution_status: "PARTIAL" },
+  { id: "demo-2", event_type: "qc_defects", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00262", resolution_status: "PARTIAL" },
+  { id: "demo-3", event_type: "warehouse", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00453", article_code: "1001", ticket_no: "Дтест/01/220926/14/1", resolution_status: "PARTIAL" }
+];
+
+async function request(path, fallbackValue, options = {}) {
   try {
-    const response = await fetch(path, { headers: { Accept: "application/json" } });
+    const response = await fetch(path, {
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options
+    });
     if (!response.ok) throw new Error(String(response.status));
     return await response.json();
   } catch {
@@ -44,5 +71,16 @@ export const api = {
     { employee: "Иванов И.И.", shifts: 14, approved_quantity: 183400, amount: 184250 },
     { employee: "Петров П.П.", shifts: 13, approved_quantity: 171200, amount: 176840 },
     { employee: "Сидоров А.А.", shifts: 15, approved_quantity: 194600, amount: 191320 }
-  ])
+  ]),
+  integrationDashboard: () => request("/api/v1/reference/dashboard", integrationFallback),
+  unresolved: () => request("/api/v1/reference/unresolved?limit=200", { rows: unresolvedFallback }),
+  masterSources: () => request("/api/v1/master-data/sources", []),
+  coverseSources: () => request("/api/v1/integrations/coverse/sources", []),
+  syncMasterData: () => request("/api/v1/master-data/sync", { demo: true }, { method: "POST" }),
+  syncMasterSource: (key) => request(`/api/v1/master-data/sync/${key}`, { source: key, status: "DEMO" }, { method: "POST" }),
+  syncCoverseSource: (key) => request(`/api/v1/integrations/coverse/sync/${key}`, { source: key, demo: true }, { method: "POST" }),
+  resolveReferences: () => request("/api/v1/reference/resolve", { demo: true, processed: 0 }, { method: "POST" }),
+  promoteResolved: () => request("/api/v1/reference/promote", { demo: true, promoted: 0 }, { method: "POST" }),
+  candidates: (entityType, q = "") => request(`/api/v1/reference/candidates/${entityType}?q=${encodeURIComponent(q)}`, { rows: [] }),
+  addAlias: (payload) => request("/api/v1/reference/aliases", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) })
 };
