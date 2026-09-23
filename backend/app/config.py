@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     coverse_api_base_url: str = "https://api.coverse.team"
     coverse_read_range_path: str = "/v1/documents/{document_id}/values"
 
+    # Yandex Disk production plan.
+    # Public link is configured only on the production server.
+    yandex_plan_public_url: str = ""
+    yandex_plan_resource_path: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
