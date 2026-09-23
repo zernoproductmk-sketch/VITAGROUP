@@ -7,6 +7,8 @@ from typing import Any
 from sqlalchemy import text
 
 from .database import engine
+from .erp_plan_promotion import ensure_run_from_plan_for_event
+from .shifts import ensure_shift
 
 
 REQUIRED_BY_EVENT: dict[str, set[str]] = {
@@ -40,20 +42,7 @@ def _resolve_alias(connection, entity_type: str, external_code: str | None):
 
 
 def _find_shift(connection, business_date, shift_code):
-    if not business_date or not shift_code:
-        return None
-    return _one(
-        connection,
-        """
-        SELECT s.id
-        FROM shifts s
-        JOIN shift_types st ON st.id = s.shift_type_id
-        WHERE s.business_date = :business_date
-          AND st.code = :shift_code
-        LIMIT 1
-        """,
-        {"business_date": business_date, "shift_code": shift_code},
-    )
+    return ensure_shift(connection, business_date, shift_code)
 
 
 def _find_employee(connection, personnel_number):
@@ -343,6 +332,13 @@ def resolve_staging_events(limit: int = 500) -> dict:
                 if not run_id and order_id:
                     run_id = _find_run_for_order(
                         connection, order_id, shift_id, event.get("occurred_at")
+                    )
+                if not run_id and order_id and shift_id:
+                    run_id = ensure_run_from_plan_for_event(
+                        connection,
+                        order_id,
+                        shift_id,
+                        event.get("occurred_at"),
                     )
                 if not run_id and event["event_type"] in {"qc_defects","warehouse","accountant"}:
                     run_id = _find_run_for_dimensions(
