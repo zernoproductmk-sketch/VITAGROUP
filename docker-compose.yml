@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -22,6 +22,10 @@ services:
       ENVIRONMENT: ${ENVIRONMENT}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE}
+      COVERSE_API_TOKEN: ${COVERSE_API_TOKEN}
+      COVERSE_API_BASE_URL: ${COVERSE_API_BASE_URL}
+      COVERSE_READ_RANGE_PATH: ${COVERSE_READ_RANGE_PATH}
     depends_on:
       db:
         condition: service_healthy
