@@ -1,8 +1,10 @@
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
 from .mock_data import PAYROLL
+from .oee_detail_service import oee_run_detail
 from .oee_service import (
     downtime_rows,
     oee_dashboard_summary,
@@ -44,6 +46,14 @@ def oee_runs(
             shift_code,
         )
     }
+
+
+@router.get("/oee/runs/{run_id}")
+def oee_run(run_id: UUID):
+    result = oee_run_detail(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Production run not found")
+    return result
 
 
 @router.get("/equipment")
