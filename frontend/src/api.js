@@ -135,6 +135,49 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  oeeRuns: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/api/v1/oee/runs${suffix}`, { rows: [] });
+  },
+  oeeRunDetail: (runId) => request(
+    `/api/v1/oee/runs/${runId}`,
+    {
+      run: {
+        id: runId,
+        equipment_code: "DEMO",
+        equipment_name: "Демо-линия",
+        order_no: "DEMO",
+        product_name: "Демо-продукция",
+        planned_qty: 10000,
+        output_qty: 9000,
+        good_qty: 8820,
+        ideal_rate_per_hour: 5000,
+        theoretical_qty: 9500,
+        planned_minutes: 120,
+        downtime_minutes: 6,
+        runtime_minutes: 114,
+        operator_defect_qty: 220,
+        qc_defect_qty: 180,
+        warehouse_qty: 8750,
+        erp_qty: 8700,
+        availability: 95,
+        performance: 94.7,
+        quality: 98,
+        oee: 88.2
+      },
+      formula: {
+        availability: { numerator: 114, denominator: 120, result: 95 },
+        performance: { numerator: 9000, denominator: 9500, result: 94.7 },
+        quality: { numerator: 8820, denominator: 9000, result: 98 },
+        oee: { availability: 95, performance: 94.7, quality: 98, result: 88.2 }
+      },
+      warnings: [],
+      events: { output: [], downtime: [], defects: [], warehouse: [], erp: [] }
+    }
+  ),
   summary: (businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
