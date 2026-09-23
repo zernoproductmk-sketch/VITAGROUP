@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
-from .mock_data import PAYROLL
 from .oee_detail_service import oee_run_detail
 from .oee_service import (
     downtime_rows,
@@ -92,7 +91,3 @@ def reconciliation(
         shift_code,
     )
 
-
-@router.get("/payroll/summary")
-def payroll_summary():
-    return PAYROLL
