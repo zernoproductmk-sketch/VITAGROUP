@@ -92,6 +92,69 @@ def promote_resolved_events(limit: int = 500) -> dict:
                         },
                     )
 
+                    if event.get("employee_id"):
+                        connection.execute(
+                            text(
+                                """
+                                INSERT INTO employee_shift_assignments (
+                                    shift_id,
+                                    employee_id,
+                                    equipment_id,
+                                    production_run_id,
+                                    started_at,
+                                    ended_at,
+                                    allocation_factor,
+                                    allocation_confirmed,
+                                    source_system,
+                                    source_record_id
+                                ) VALUES (
+                                    :shift_id,
+                                    :employee_id,
+                                    :equipment_id,
+                                    :production_run_id,
+                                    :started_at,
+                                    :ended_at,
+                                    1,
+                                    false,
+                                    'COVERSE',
+                                    :source_record_id
+                                )
+                                ON CONFLICT (production_run_id, employee_id)
+                                WHERE production_run_id IS NOT NULL
+                                DO UPDATE SET
+                                    shift_id = EXCLUDED.shift_id,
+                                    equipment_id = EXCLUDED.equipment_id,
+                                    started_at = CASE
+                                        WHEN employee_shift_assignments.started_at IS NULL
+                                        THEN EXCLUDED.started_at
+                                        ELSE LEAST(
+                                            employee_shift_assignments.started_at,
+                                            EXCLUDED.started_at
+                                        )
+                                    END,
+                                    ended_at = CASE
+                                        WHEN EXCLUDED.ended_at IS NULL
+                                        THEN employee_shift_assignments.ended_at
+                                        WHEN employee_shift_assignments.ended_at IS NULL
+                                        THEN EXCLUDED.ended_at
+                                        ELSE GREATEST(
+                                            employee_shift_assignments.ended_at,
+                                            EXCLUDED.ended_at
+                                        )
+                                    END
+                                """
+                            ),
+                            {
+                                "shift_id": event["shift_id"],
+                                "employee_id": event["employee_id"],
+                                "equipment_id": event["equipment_id"],
+                                "production_run_id": event["production_run_id"],
+                                "started_at": event["occurred_at"],
+                                "ended_at": event.get("ended_at"),
+                                "source_record_id": f"{source_record_id}|ASSIGNMENT",
+                            },
+                        )
+
                     if event.get("secondary_quantity") is not None:
                         defect_source_id = f"{source_record_id}|OPERATOR_DEFECT"
                         connection.execute(
