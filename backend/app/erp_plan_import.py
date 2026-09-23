@@ -19,6 +19,11 @@ from .integrations.yandex_disk import (
     configured_plan_source,
     public_key_hash,
 )
+from .printed_1c_plan import (
+    detect_printed_1c_form,
+    inspect_printed_1c_form,
+    parse_printed_1c_form,
+)
 
 
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
@@ -220,6 +225,51 @@ def inspect_workbook(content: bytes, file_name: str) -> dict[str, Any]:
     result = []
 
     for sheet in sheets:
+        if detect_printed_1c_form(sheet["rows"]):
+            printed = inspect_printed_1c_form(sheet["rows"])
+            result.append(
+                {
+                    "name": sheet["name"],
+                    "schema_type": printed["schema_type"],
+                    "header_row": None,
+                    "headers": [],
+                    "mapping": {},
+                    "recognized_fields": [
+                        "task_id",
+                        "order_no",
+                        "business_date",
+                        "workshop",
+                        "article",
+                        "product_name",
+                        "tech_card",
+                        "plan_qty_pcs",
+                        "route_operation",
+                        "route_equipment_name",
+                        "norm_hours",
+                        "ideal_rate_per_hour",
+                    ],
+                    "core_fields_found": [
+                        field
+                        for field in ("business_date", "order_no", "article")
+                        if (
+                            field != "article"
+                            or any(item.get("article") for item in printed.get("outputs", []))
+                        )
+                        and (
+                            field != "business_date"
+                            or printed.get("business_date")
+                        )
+                        and (
+                            field != "order_no"
+                            or printed.get("order_no")
+                        )
+                    ],
+                    "printed_form": printed,
+                    "sample_rows": [],
+                }
+            )
+            continue
+
         header_row, headers, mapping = _find_header_row(sheet["rows"])
         sample_rows = []
         for row in sheet["rows"][header_row + 1: header_row + 6]:
@@ -250,6 +300,7 @@ def _choose_sheet(inspected: dict[str, Any]) -> dict[str, Any] | None:
     return max(
         sheets,
         key=lambda item: (
+            1 if item.get("schema_type") == "1C_PRINTED_PRODUCTION_TASK" else 0,
             len(item.get("core_fields_found") or []),
             len(item.get("recognized_fields") or []),
         ),
@@ -340,6 +391,272 @@ async def yandex_plan_preview() -> dict[str, Any]:
         await client.close()
 
 
+def _persist_printed_1c_plan(
+    *,
+    parsed: dict[str, Any],
+    file_name: str,
+    sheet_name: str,
+    metadata: dict[str, Any],
+    source_hash: str,
+) -> dict[str, Any]:
+    mapping = {
+        "schema_type": "1C_PRINTED_PRODUCTION_TASK",
+        "source": "label_and_section_parser",
+    }
+
+    with engine.begin() as connection:
+        batch_id = connection.execute(
+            text(
+                """
+                INSERT INTO erp_plan_import_batches (
+                    source_file_name,
+                    source_file_modified,
+                    source_file_size,
+                    source_public_key_hash,
+                    source_sheet,
+                    mapping
+                ) VALUES (
+                    :file_name,
+                    :modified,
+                    :size,
+                    :source_hash,
+                    :sheet_name,
+                    CAST(:mapping AS jsonb)
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "file_name": file_name,
+                "modified": metadata.get("modified"),
+                "size": metadata.get("size"),
+                "source_hash": source_hash,
+                "sheet_name": sheet_name,
+                "mapping": json.dumps(mapping, ensure_ascii=False),
+            },
+        ).scalar_one()
+
+        applied = skipped = errors = 0
+
+        for item in parsed["outputs"]:
+            status, error_message = _row_status(item)
+            if status == "IGNORED":
+                skipped += 1
+            else:
+                applied += 1
+
+            source_row = int(item.get("source_row") or 1)
+            source_record_key = "|".join(
+                [
+                    "YANDEX_DISK",
+                    source_hash,
+                    file_name,
+                    sheet_name,
+                    str(source_row),
+                    str(item.get("task_id") or item.get("order_no") or ""),
+                    str(item.get("article") or ""),
+                ]
+            )
+
+            raw_data = {
+                "schema_type": parsed["schema_type"],
+                "task_id": parsed.get("task_id"),
+                "order_no": parsed.get("order_no"),
+                "business_date": parsed.get("business_date"),
+                "workshop": parsed.get("workshop"),
+                "product_name": item.get("product_name"),
+                "specification": parsed.get("specification"),
+                "route_operations": item.get("route_operations") or [],
+            }
+
+            try:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO erp_plan_staging (
+                            import_batch_id,
+                            source_file_name,
+                            source_sheet,
+                            source_row,
+                            source_record_key,
+                            erp_guid,
+                            task_id,
+                            business_date,
+                            shift_code,
+                            workshop,
+                            equipment_code,
+                            order_no,
+                            article,
+                            customer,
+                            tech_card,
+                            plan_qty_pcs,
+                            pcs_per_box,
+                            boxes_per_pallet,
+                            plan_kg,
+                            source_status,
+                            product_name,
+                            output_unit,
+                            route_operation,
+                            route_equipment_name,
+                            route_equipment_hint,
+                            norm_hours,
+                            ideal_rate_per_hour,
+                            route_operations,
+                            raw_data,
+                            row_status,
+                            error_message
+                        ) VALUES (
+                            :import_batch_id,
+                            :source_file_name,
+                            :source_sheet,
+                            :source_row,
+                            :source_record_key,
+                            :erp_guid,
+                            :task_id,
+                            :business_date,
+                            :shift_code,
+                            :workshop,
+                            :equipment_code,
+                            :order_no,
+                            :article,
+                            :customer,
+                            :tech_card,
+                            :plan_qty_pcs,
+                            :pcs_per_box,
+                            :boxes_per_pallet,
+                            :plan_kg,
+                            :source_status,
+                            :product_name,
+                            :output_unit,
+                            :route_operation,
+                            :route_equipment_name,
+                            :route_equipment_hint,
+                            :norm_hours,
+                            :ideal_rate_per_hour,
+                            CAST(:route_operations AS jsonb),
+                            CAST(:raw_data AS jsonb),
+                            :row_status,
+                            :error_message
+                        )
+                        ON CONFLICT (source_record_key)
+                        DO UPDATE SET
+                            import_batch_id = EXCLUDED.import_batch_id,
+                            business_date = EXCLUDED.business_date,
+                            workshop = EXCLUDED.workshop,
+                            order_no = EXCLUDED.order_no,
+                            article = EXCLUDED.article,
+                            tech_card = EXCLUDED.tech_card,
+                            plan_qty_pcs = EXCLUDED.plan_qty_pcs,
+                            plan_kg = EXCLUDED.plan_kg,
+                            product_name = EXCLUDED.product_name,
+                            output_unit = EXCLUDED.output_unit,
+                            route_operation = EXCLUDED.route_operation,
+                            route_equipment_name = EXCLUDED.route_equipment_name,
+                            route_equipment_hint = EXCLUDED.route_equipment_hint,
+                            norm_hours = EXCLUDED.norm_hours,
+                            ideal_rate_per_hour = EXCLUDED.ideal_rate_per_hour,
+                            route_operations = EXCLUDED.route_operations,
+                            raw_data = EXCLUDED.raw_data,
+                            row_status = EXCLUDED.row_status,
+                            error_message = EXCLUDED.error_message,
+                            updated_at = now()
+                        """
+                    ),
+                    {
+                        "import_batch_id": batch_id,
+                        "source_file_name": file_name,
+                        "source_sheet": sheet_name,
+                        "source_row": source_row,
+                        "source_record_key": source_record_key,
+                        **{
+                            key: item.get(key)
+                            for key in (
+                                "erp_guid",
+                                "task_id",
+                                "business_date",
+                                "shift_code",
+                                "workshop",
+                                "equipment_code",
+                                "order_no",
+                                "article",
+                                "customer",
+                                "tech_card",
+                                "plan_qty_pcs",
+                                "pcs_per_box",
+                                "boxes_per_pallet",
+                                "plan_kg",
+                                "source_status",
+                                "product_name",
+                                "output_unit",
+                                "route_operation",
+                                "route_equipment_name",
+                                "route_equipment_hint",
+                                "norm_hours",
+                                "ideal_rate_per_hour",
+                            )
+                        },
+                        "route_operations": json.dumps(
+                            item.get("route_operations") or [],
+                            ensure_ascii=False,
+                            default=str,
+                        ),
+                        "raw_data": json.dumps(
+                            raw_data,
+                            ensure_ascii=False,
+                            default=str,
+                        ),
+                        "row_status": status,
+                        "error_message": error_message,
+                    },
+                )
+            except Exception:
+                errors += 1
+                applied = max(0, applied - 1)
+
+        batch_status = "COMPLETED_WITH_ERRORS" if errors else "COMPLETED"
+        connection.execute(
+            text(
+                """
+                UPDATE erp_plan_import_batches
+                SET status = :status,
+                    rows_read = :rows_read,
+                    rows_applied = :rows_applied,
+                    rows_skipped = :rows_skipped,
+                    rows_error = :rows_error,
+                    completed_at = now()
+                WHERE id = :batch_id
+                """
+            ),
+            {
+                "status": batch_status,
+                "rows_read": len(parsed["outputs"]),
+                "rows_applied": applied,
+                "rows_skipped": skipped,
+                "rows_error": errors,
+                "batch_id": batch_id,
+            },
+        )
+
+    return {
+        "status": batch_status,
+        "batch_id": str(batch_id),
+        "file_name": file_name,
+        "sheet": sheet_name,
+        "schema_type": parsed["schema_type"],
+        "task_id": parsed.get("task_id"),
+        "order_no": parsed.get("order_no"),
+        "business_date": (
+            parsed["business_date"].isoformat()
+            if parsed.get("business_date")
+            else None
+        ),
+        "outputs": len(parsed["outputs"]),
+        "rows_applied": applied,
+        "rows_skipped": skipped,
+        "rows_error": errors,
+    }
+
+
 async def import_yandex_plan() -> dict[str, Any]:
     public_url, resource_path = configured_plan_source()
     client = YandexDiskClient()
@@ -361,6 +678,19 @@ async def import_yandex_plan() -> dict[str, Any]:
     if not selected:
         raise ValueError("Workbook does not contain readable sheets")
 
+    sheet_name = selected["name"]
+
+    if selected.get("schema_type") == "1C_PRINTED_PRODUCTION_TASK":
+        sheet = next(item for item in workbook if item["name"] == sheet_name)
+        parsed = parse_printed_1c_form(sheet["rows"])
+        return _persist_printed_1c_plan(
+            parsed=parsed,
+            file_name=file_name,
+            sheet_name=sheet_name,
+            metadata=metadata,
+            source_hash=public_key_hash(public_url),
+        )
+
     core_found = set(selected.get("core_fields_found") or [])
     if len(core_found) < 2:
         raise ValueError(
@@ -368,7 +698,6 @@ async def import_yandex_plan() -> dict[str, Any]:
             "(date, order, article) are required"
         )
 
-    sheet_name = selected["name"]
     header_row_index = int(selected["header_row"]) - 1
     mapping = selected["mapping"]
     sheet = next(item for item in workbook if item["name"] == sheet_name)
