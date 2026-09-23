@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .admin_routes import router as reference_router
 from .api import router
 from .config import settings
 from .coverse_routes import router as coverse_router
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(coverse_router)
+app.include_router(reference_router)
 
 
 @app.get("/health")
