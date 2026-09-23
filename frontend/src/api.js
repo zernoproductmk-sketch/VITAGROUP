@@ -38,10 +38,54 @@ const integrationFallback = {
 };
 
 const unresolvedFallback = [
-  { id: "demo-1", event_type: "production_output", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00452", order_no: "430.83.1", resolution_status: "PARTIAL" },
-  { id: "demo-2", event_type: "qc_defects", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00262", resolution_status: "PARTIAL" },
-  { id: "demo-3", event_type: "warehouse", business_date: "2026-09-22", shift_code: "DAY", personnel_number: "00453", article_code: "1001", ticket_no: "Дтест/01/220926/14/1", resolution_status: "PARTIAL" }
+  {
+    id: "11111111-1111-4111-8111-111111111111",
+    event_type: "production_output",
+    business_date: "2026-09-22",
+    shift_code: "DAY",
+    personnel_number: "00452",
+    order_no: "430.83.1",
+    resolution_status: "PARTIAL",
+    resolution_details: { missing: ["production_order_id", "production_run_id", "equipment_id", "product_id", "shift_id"] }
+  },
+  {
+    id: "22222222-2222-4222-8222-222222222222",
+    event_type: "qc_defects",
+    business_date: "2026-09-22",
+    shift_code: "DAY",
+    personnel_number: "00262",
+    resolution_status: "PARTIAL",
+    resolution_details: { missing: ["product_id", "production_run_id", "shift_id"] }
+  },
+  {
+    id: "33333333-3333-4333-8333-333333333333",
+    event_type: "warehouse",
+    business_date: "2026-09-22",
+    shift_code: "DAY",
+    personnel_number: "00453",
+    article_code: "1001",
+    ticket_no: "Дтест/01/220926/14/1",
+    resolution_status: "PARTIAL",
+    resolution_details: { missing: ["employee_id", "product_id", "shift_id"] }
+  }
 ];
+
+const demoCandidates = {
+  EMPLOYEE: [
+    { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", code: "00452", label: "Оператор — тестовая запись", secondary: "Производство" },
+    { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", code: "00453", label: "Кладовщик — тестовая запись", secondary: "Склад" }
+  ],
+  EQUIPMENT: [
+    { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", code: "L-14/1", label: "L-14/1", secondary: null },
+    { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", code: "L-18", label: "L-18", secondary: null }
+  ],
+  PRODUCT: [
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", code: "ОВ-55-3442", label: "Бумага оберточная 340х420 мм", secondary: "1001" }
+  ],
+  PRODUCTION_ORDER: [
+    { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", code: "430.83.1", label: "Заказ 430.83.1", secondary: "Демо ERP" }
+  ]
+};
 
 async function request(path, fallbackValue, options = {}) {
   try {
@@ -81,6 +125,21 @@ export const api = {
   syncCoverseSource: (key) => request(`/api/v1/integrations/coverse/sync/${key}`, { source: key, demo: true }, { method: "POST" }),
   resolveReferences: () => request("/api/v1/reference/resolve", { demo: true, processed: 0 }, { method: "POST" }),
   promoteResolved: () => request("/api/v1/reference/promote", { demo: true, promoted: 0 }, { method: "POST" }),
-  candidates: (entityType, q = "") => request(`/api/v1/reference/candidates/${entityType}?q=${encodeURIComponent(q)}`, { rows: [] }),
+  candidates: (entityType, q = "") => {
+    const all = demoCandidates[entityType] || [];
+    const needle = q.trim().toLowerCase();
+    const filtered = needle
+      ? all.filter(item => [item.code, item.label, item.secondary].some(v => String(v || "").toLowerCase().includes(needle)))
+      : all;
+    return request(
+      `/api/v1/reference/candidates/${entityType}?q=${encodeURIComponent(q)}`,
+      { rows: filtered }
+    );
+  },
+  manualMap: (payload) => request(
+    "/api/v1/reference/manual-map",
+    { status: "demo", event: { id: payload.staging_event_id, resolution_status: "PARTIAL" } },
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
   addAlias: (payload) => request("/api/v1/reference/aliases", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) })
 };
