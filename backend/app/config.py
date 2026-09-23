@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://vitagroup:vitagroup@db:5432/vitagroup"
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
+    business_timezone: str = "Europe/Moscow"
 
     # Coverse
     coverse_api_token: str = ""
