@@ -145,14 +145,6 @@ def normalize_rows(source: CoverseSource, cells: list[list[Any]]) -> list[dict[s
 
 
 class CoverseClient:
-    """
-    Coverse Tables REST adapter.
-
-    The real API token is provided only through the server environment.
-    Base URL and read-range path remain configurable so they can be set to the
-    exact values from the Coverse API portal without changing application code.
-    """
-
     def __init__(self) -> None:
         if not settings.coverse_api_token:
             raise RuntimeError("COVERSE_API_TOKEN is not configured")
@@ -169,20 +161,22 @@ class CoverseClient:
     async def close(self) -> None:
         await self.client.aclose()
 
-    async def read_source(self, key: str) -> list[dict[str, Any]]:
-        source = SOURCES[key]
-        endpoint = settings.coverse_read_range_path.format(document_id=source.document_id)
+    async def read_range(self, document_id: str, sheet_name: str, range_a1: str) -> list[list[Any]]:
+        endpoint = settings.coverse_read_range_path.format(document_id=document_id)
         response = await self.client.get(
             endpoint,
-            params={"range": f"'{source.sheet_name}'!{source.range_a1}"},
+            params={"range": f"'{sheet_name}'!{range_a1}"},
         )
         response.raise_for_status()
         payload = response.json()
-
-        cells = (
+        return (
             payload.get("values", {}).get("cells")
             or payload.get("cells")
             or payload.get("values")
             or []
         )
+
+    async def read_source(self, key: str) -> list[dict[str, Any]]:
+        source = SOURCES[key]
+        cells = await self.read_range(source.document_id, source.sheet_name, source.range_a1)
         return normalize_rows(source, cells)
