@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VITAGROUP — Production & OEE</title>
+  <meta name="description" content="Прототип корпоративной системы OEE, производства и сдельной заработной платы ООО ВИТА ГРУПП">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">VG</div>
+        <div>
+          <div class="brand-name">VITAGROUP</div>
+          <div class="brand-sub">Production & OEE</div>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Главное меню">
+        <button class="nav-item active" data-section="dashboard"><span class="nav-icon">◫</span><span>OEE онлайн</span></button>
+        <button class="nav-item" data-section="production"><span class="nav-icon">▦</span><span>Производство</span></button>
+        <button class="nav-item" data-section="downtime"><span class="nav-icon">◷</span><span>Простои</span></button>
+        <button class="nav-item" data-section="quality"><span class="nav-icon">✓</span><span>ГП / Брак / ОТК</span></button>
+        <button class="nav-item" data-section="reconciliation"><span class="nav-icon">⇄</span><span>Сверка</span></button>
+        <button class="nav-item" data-section="payroll"><span class="nav-icon">₽</span><span>Сдельная ЗП</span></button>
+        <button class="nav-item" data-section="imports"><span class="nav-icon">↥</span><span>Импорт данных</span></button>
+      </nav>
+
+      <div class="sidebar-note">
+        <span class="dot dot-blue"></span>
+        <div>
+          <strong>Прототип v0.1</strong>
+          <small>Только демонстрационные данные</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Открыть меню">☰</button>
+        <div>
+          <h1 id="pageTitle">OEE онлайн</h1>
+          <p class="subtitle">ООО «ВИТА ГРУПП» · производственный контур</p>
+        </div>
+        <div class="topbar-controls">
+          <div class="date-box">
+            <span>Дата</span>
+            <strong>23.09.2026</strong>
+          </div>
+          <div class="segmented" aria-label="Выбор смены">
+            <button class="segment active" data-shift="day">ДЕНЬ</button>
+            <button class="segment" data-shift="night">НОЧЬ</button>
+          </div>
+          <div class="user-pill">
+            <div class="avatar">Э</div>
+            <div><strong>Экономист</strong><small>Демо-доступ</small></div>
+          </div>
+        </div>
+      </header>
+
+      <section class="content-section active" id="dashboard">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Текущая смена</span>
+            <h2 id="shiftLabel">ДЕНЬ · 09:00–21:00</h2>
+          </div>
+          <div class="status-chip live"><span class="pulse"></span>ONLINE</div>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card oee-card">
+            <div class="kpi-top"><span>OEE</span><span class="trend positive">+2,6 п.п.</span></div>
+            <div class="oee-row">
+              <div class="donut" id="oeeDonut"><div><strong id="oeeValue">76,4%</strong><small>OEE</small></div></div>
+              <div class="oee-formula">
+                <span><b id="availabilityValue">88,2%</b> Доступность</span>
+                <span><b id="performanceValue">91,5%</b> Производительность</span>
+                <span><b id="qualityValue">94,7%</b> Качество</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top"><span>План смены</span><span class="mini-badge">шт.</span></div>
+            <strong class="big-number" id="planValue">82 000</strong>
+            <div class="progress"><span id="planProgress" style="width:75%"></span></div>
+            <div class="kpi-foot"><span>Выполнено</span><b id="planPercent">74,9%</b></div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Фактический выпуск</span><span class="mini-badge success">Coverse</span></div>
+            <strong class="big-number" id="factValue">61 450</strong>
+            <div class="kpi-foot split"><span>ГП <b id="gpValue">59 870</b></span><span>Брак <b id="scrapValue">1 580</b></span></div>
+          </article>
+
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Простои</span><span class="mini-badge warning">за смену</span></div>
+            <strong class="big-number" id="downtimeValue">01:24</strong>
+            <div class="kpi-foot split"><span>Событий <b id="downtimeCount">6</b></span><span>Активных <b class="danger" id="activeDowntime">1</b></span></div>
+          </article>
+        </div>
+
+        <div class="grid-2">
+          <article class="panel">
+            <div class="panel-head">
+              <div><span class="eyebrow">Оборудование</span><h3>Статус линий</h3></div>
+              <button class="text-button" data-go="production">Все линии →</button>
+            </div>
+            <div class="machine-list" id="machineList"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div><span class="eyebrow">Выпуск по времени</span><h3>Темп смены</h3></div>
+              <div class="legend"><span><i class="legend-plan"></i>План</span><span><i class="legend-fact"></i>Факт</span></div>
+            </div>
+            <div class="bar-chart" id="hourChart"></div>
+            <div class="chart-axis"><span>09:00</span><span>12:00</span><span>15:00</span><span>18:00</span><span>21:00</span></div>
+          </article>
+        </div>
+
+        <div class="grid-2 bottom-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div><span class="eyebrow">Контроль качества</span><h3>Оператор → ОТК → Склад → ERP</h3></div>
+              <button class="text-button" data-go="reconciliation">Подробнее →</button>
+            </div>
+            <div class="recon-strip">
+              <div><small>Выпуск оператора</small><strong id="reconOperator">61 450</strong></div><span>→</span>
+              <div><small>Годная продукция ОТК</small><strong id="reconQc">59 920</strong></div><span>→</span>
+              <div><small>Принято складом</small><strong id="reconWarehouse">59 870</strong></div><span>→</span>
+              <div><small>Отражено ERP</small><strong id="reconErp">58 900</strong></div>
+            </div>
+            <div class="alert warning-alert"><b>Контроль:</b> ERP отстает от склада на <strong id="erpDelta">970 шт.</strong> — требуется сверка документов.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div><span class="eyebrow">Сдельная ЗП</span><h3>Предварительный расчет</h3></div>
+              <button class="text-button" data-go="payroll">Открыть расчет →</button>
+            </div>
+            <div class="payroll-summary">
+              <div><small>Сотрудников в смене</small><strong>12</strong></div>
+              <div><small>Подтверждено выработки</small><strong>59 870 шт.</strong></div>
+              <div><small>Предварительно начислено</small><strong>86 420 ₽</strong></div>
+            </div>
+            <div class="alert info-alert">Расчет демонстрационный. В промышленной версии начисление формируется только из подтвержденной выработки и действующего тарифа.</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="content-section" id="production">
+        <div class="section-head"><div><span class="eyebrow">Смена 23.09.2026</span><h2>Производство</h2></div><button class="primary-btn">+ Новый запуск</button></div>
+        <div class="table-card">
+          <div class="table-toolbar"><strong>Запуски оборудования</strong><span class="filter-chip">Все участки</span><span class="filter-chip">Текущая смена</span></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Оборудование</th><th>Номенклатура</th><th>Заказ</th><th>План</th><th>Факт</th><th>Брак</th><th>OEE</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td><b>ПДМ-01</b></td><td>Пакет бумажный 320×200</td><td>ЗП-260923-01</td><td>24 000</td><td>19 420</td><td>320</td><td>82,1%</td><td><span class="status-chip success">Работает</span></td></tr>
+              <tr><td><b>ПДМ-02</b></td><td>Пакет бумажный 280×180</td><td>ЗП-260923-04</td><td>18 000</td><td>12 600</td><td>410</td><td>68,4%</td><td><span class="status-chip warning">Простой</span></td></tr>
+              <tr><td><b>ПДМ-03</b></td><td>Пакет бумажный 350×260</td><td>ЗП-260923-07</td><td>21 000</td><td>16 230</td><td>280</td><td>78,7%</td><td><span class="status-chip success">Работает</span></td></tr>
+              <tr><td><b>ПДМ-04</b></td><td>Пакет бумажный 240×140</td><td>ЗП-260923-09</td><td>19 000</td><td>13 200</td><td>570</td><td>73,9%</td><td><span class="status-chip success">Работает</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section class="content-section" id="downtime">
+        <div class="section-head"><div><span class="eyebrow">События оборудования</span><h2>Простои</h2></div><button class="primary-btn">+ Зафиксировать простой</button></div>
+        <div class="mini-kpis">
+          <div><small>Общее время</small><strong>01:24:18</strong></div>
+          <div><small>Незапланированные</small><strong>01:07:42</strong></div>
+          <div><small>Запланированные</small><strong>00:16:36</strong></div>
+          <div><small>Активные сейчас</small><strong class="danger">1</strong></div>
+        </div>
+        <div class="table-card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Оборудование</th><th>Начало</th><th>Окончание</th><th>Длительность</th><th>Причина</th><th>Тип</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td><b>ПДМ-02</b></td><td>14:42</td><td>—</td><td><b class="danger">00:17:42</b></td><td>Ожидание материала</td><td>Незапланированный</td><td><span class="status-chip danger-chip">Активен</span></td></tr>
+              <tr><td>ПДМ-04</td><td>12:18</td><td>12:34</td><td>00:16:36</td><td>Плановая переналадка</td><td>Запланированный</td><td><span class="status-chip neutral">Закрыт</span></td></tr>
+              <tr><td>ПДМ-01</td><td>11:07</td><td>11:29</td><td>00:22:10</td><td>Замятие полотна</td><td>Незапланированный</td><td><span class="status-chip neutral">Закрыт</span></td></tr>
+              <tr><td>ПДМ-03</td><td>10:16</td><td>10:28</td><td>00:11:50</td><td>Корректировка настройки</td><td>Незапланированный</td><td><span class="status-chip neutral">Закрыт</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section class="content-section" id="quality">
+        <div class="section-head"><div><span class="eyebrow">Качество и склад</span><h2>ГП / Брак / ОТК</h2></div><div class="status-chip live"><span class="pulse"></span>ONLINE</div></div>
+        <div class="kpi-grid compact">
+          <article class="kpi-card"><div class="kpi-top"><span>Выпуск производства</span></div><strong class="big-number">61 450</strong></article>
+          <article class="kpi-card"><div class="kpi-top"><span>Брак оператора</span></div><strong class="big-number">1 580</strong></article>
+          <article class="kpi-card"><div class="kpi-top"><span>Брак ОТК</span></div><strong class="big-number">1 530</strong></article>
+          <article class="kpi-card"><div class="kpi-top"><span>Принято складом</span></div><strong class="big-number">59 870</strong></article>
+        </div>
+        <div class="table-card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Оборудование</th><th>Выпуск</th><th>Брак оператор</th><th>Брак ОТК</th><th>Отклонение</th><th>Склад ГП</th><th>Контроль</th></tr></thead>
+            <tbody>
+              <tr><td>ПДМ-01</td><td>19 420</td><td>320</td><td>315</td><td>+5</td><td>19 105</td><td><span class="status-chip success">Сходится</span></td></tr>
+              <tr><td>ПДМ-02</td><td>12 600</td><td>410</td><td>390</td><td class="warning-text">+20</td><td>12 180</td><td><span class="status-chip warning">Проверить</span></td></tr>
+              <tr><td>ПДМ-03</td><td>16 230</td><td>280</td><td>280</td><td>0</td><td>15 950</td><td><span class="status-chip success">Сходится</span></td></tr>
+              <tr><td>ПДМ-04</td><td>13 200</td><td>570</td><td>545</td><td class="warning-text">+25</td><td>12 635</td><td><span class="status-chip warning">Проверить</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section class="content-section" id="reconciliation">
+        <div class="section-head"><div><span class="eyebrow">Контроль данных</span><h2>Сверка источников</h2></div><button class="secondary-btn">Экспорт расхождений</button></div>
+        <div class="flow-card">
+          <div class="flow-step"><span>1</span><small>Производство</small><strong>61 450</strong><em>Coverse</em></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><span>2</span><small>ОТК: годное</small><strong>59 920</strong><em>Coverse</em></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><span>3</span><small>Склад</small><strong>59 870</strong><em>Coverse</em></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step alert-step"><span>4</span><small>ERP</small><strong>58 900</strong><em>1С:ERP</em></div>
+        </div>
+        <div class="table-card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Номенклатура</th><th>Оператор</th><th>ОТК годное</th><th>Склад</th><th>ERP</th><th>Δ Склад→ERP</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td>Пакет 320×200</td><td>19 420</td><td>19 105</td><td>19 105</td><td>19 105</td><td>0</td><td><span class="status-chip success">OK</span></td></tr>
+              <tr><td>Пакет 280×180</td><td>12 600</td><td>12 210</td><td>12 180</td><td>11 700</td><td class="danger">−480</td><td><span class="status-chip danger-chip">Расхождение</span></td></tr>
+              <tr><td>Пакет 350×260</td><td>16 230</td><td>15 950</td><td>15 950</td><td>15 950</td><td>0</td><td><span class="status-chip success">OK</span></td></tr>
+              <tr><td>Пакет 240×140</td><td>13 200</td><td>12 655</td><td>12 635</td><td>12 145</td><td class="danger">−490</td><td><span class="status-chip danger-chip">Расхождение</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section class="content-section" id="payroll">
+        <div class="section-head">
+          <div><span class="eyebrow">Период 01.09–30.09.2026</span><h2>Сдельная заработная плата</h2></div>
+          <div class="button-row"><button class="secondary-btn">Пересчитать</button><button class="primary-btn">Утвердить период</button></div>
+        </div>
+        <div class="payroll-head">
+          <div><small>Статус периода</small><strong><span class="status-chip warning">CALCULATED</span></strong></div>
+          <div><small>Сотрудников</small><strong>38</strong></div>
+          <div><small>Подтвержденная выработка</small><strong>1 842 600 шт.</strong></div>
+          <div><small>Сдельное начисление</small><strong>2 486 740 ₽</strong></div>
+        </div>
+        <div class="table-card">
+          <div class="table-toolbar"><strong>Расшифровка начислений</strong><span class="filter-chip">Сентябрь 2026</span><span class="filter-chip">Все участки</span></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Сотрудник</th><th>Таб. №</th><th>Смен</th><th>Подтверждено</th><th>Средний тариф</th><th>Коэф.</th><th>Начислено</th><th>Проверка</th></tr></thead>
+            <tbody>
+              <tr><td><b>Оператор 001</b></td><td>0001</td><td>15</td><td>183 400</td><td>0,94 ₽</td><td>1,00</td><td><b>172 396 ₽</b></td><td><span class="status-chip success">Проверено</span></td></tr>
+              <tr><td><b>Оператор 002</b></td><td>0002</td><td>14</td><td>171 200</td><td>0,98 ₽</td><td>1,00</td><td><b>167 776 ₽</b></td><td><span class="status-chip success">Проверено</span></td></tr>
+              <tr><td><b>Оператор 003</b></td><td>0003</td><td>16</td><td>194 600</td><td>0,91 ₽</td><td>1,00</td><td><b>177 086 ₽</b></td><td><span class="status-chip warning">На проверке</span></td></tr>
+              <tr><td><b>Оператор 004</b></td><td>0004</td><td>13</td><td>152 800</td><td>1,02 ₽</td><td>0,85</td><td><b>132 499 ₽</b></td><td><span class="status-chip warning">На проверке</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="formula-card"><b>Базовая формула:</b> Подтвержденное количество × Тариф × Коэффициент участия. <span>Все значения хранятся в расчете как снимок на момент начисления.</span></div>
+      </section>
+
+      <section class="content-section" id="imports">
+        <div class="section-head"><div><span class="eyebrow">Интеграционный контур</span><h2>Импорт данных</h2></div><button class="primary-btn">Загрузить Excel</button></div>
+        <div class="source-grid">
+          <article class="source-card"><div class="source-icon">C</div><div><strong>Coverse</strong><span>Оперативные формы производства</span></div><span class="status-chip success">Подключить API</span></article>
+          <article class="source-card"><div class="source-icon">1C</div><div><strong>1С:ERP</strong><span>План, справочники, официальный факт</span></div><span class="status-chip neutral">Проект API</span></article>
+          <article class="source-card"><div class="source-icon">G</div><div><strong>Google Sheets</strong><span>Переходные таблицы</span></div><span class="status-chip neutral">Временно</span></article>
+          <article class="source-card"><div class="source-icon">X</div><div><strong>Excel</strong><span>Массовая загрузка файлов</span></div><span class="status-chip success">Предусмотрено</span></article>
+        </div>
+        <div class="table-card">
+          <div class="table-toolbar"><strong>Последние загрузки</strong></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Источник</th><th>Тип данных</th><th>Начало</th><th>Строк</th><th>Ошибок</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td>Coverse</td><td>Выпуск</td><td>23.09.2026 14:50</td><td>128</td><td>0</td><td><span class="status-chip success">Завершено</span></td></tr>
+              <tr><td>Excel</td><td>План смены</td><td>23.09.2026 08:42</td><td>46</td><td>2</td><td><span class="status-chip warning">С ошибками</span></td></tr>
+              <tr><td>1С:ERP</td><td>Факт производства</td><td>23.09.2026 14:30</td><td>94</td><td>0</td><td><span class="status-chip success">Завершено</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
