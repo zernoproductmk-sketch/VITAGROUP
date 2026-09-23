@@ -1,10 +1,23 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .auth import require_roles
 from .database import latest_staged_events, stage_external_events
 from .integrations.coverse import CoverseClient, SOURCES
 from .normalization import normalize_coverse_event
 
-router = APIRouter(prefix="/api/v1/integrations/coverse", tags=["Coverse"])
+router = APIRouter(
+    prefix="/api/v1/integrations/coverse",
+    tags=["Coverse"],
+    dependencies=[
+        Depends(
+            require_roles(
+                "ACCOUNTANT_PRODUCTION",
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
 
 
 @router.get("/sources")
