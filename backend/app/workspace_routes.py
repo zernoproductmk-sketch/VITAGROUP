@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from .auth import CurrentUser, require_roles
 from .workspace_service import (
     record_accounting_control,
+    record_operator_defect,
     record_operator_output,
     record_qc_defect,
     record_warehouse_receipt,
@@ -22,6 +23,15 @@ class OperatorOutputInput(BaseModel):
     production_run_id: UUID
     quantity: float = Field(gt=0)
     defect_quantity: float | None = Field(default=None, ge=0)
+    occurred_at: datetime | None = None
+    comment: str | None = None
+    client_event_id: UUID
+
+
+class OperatorDefectInput(BaseModel):
+    production_run_id: UUID
+    quantity: float = Field(gt=0)
+    reason_id: UUID | None = None
     occurred_at: datetime | None = None
     comment: str | None = None
     client_event_id: UUID
@@ -84,6 +94,20 @@ def operator_output(payload: OperatorOutputInput, user: CurrentUser):
         return record_operator_output(
             user, payload.production_run_id, payload.quantity,
             payload.defect_quantity, payload.occurred_at,
+            payload.comment, payload.client_event_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/operator/defect", dependencies=[Depends(require_roles("OPERATOR","ADMIN"))])
+def operator_defect(payload: OperatorDefectInput, user: CurrentUser):
+    try:
+        return record_operator_defect(
+            user, payload.production_run_id, payload.quantity,
+            payload.reason_id, payload.occurred_at,
             payload.comment, payload.client_event_id,
         )
     except LookupError as exc:
