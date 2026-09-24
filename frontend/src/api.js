@@ -175,6 +175,24 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  reconciliationControl: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(
+      `/api/v1/reconciliation-control${suffix}`,
+      {
+        summary: { runs: 0, ok: 0, warning: 0, critical: 0, open_cases: 0 },
+        rows: [],
+        reason_options: []
+      }
+    );
+  },
+  saveReconciliationCase: (runId, payload) => strictRequest(
+    `/api/v1/reconciliation-control/${runId}/case`,
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
   workspaceContext: (kind, businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
