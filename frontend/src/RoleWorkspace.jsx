@@ -200,6 +200,20 @@ function QCForm({ context, selectedRun, onRefresh }) {
     await onRefresh();
   };
 
+  const saveNoDefect = async () => {
+    await api.qcNoDefect({
+      production_run_id: selectedRun.id,
+      occurred_at: null,
+      comment: comment || "Проверено ОТК, брак не выявлен",
+      client_event_id: uuid()
+    });
+    setQuantity("");
+    setReason("");
+    setComment("");
+    setNotice("Проверка ОТК без брака подтверждена");
+    await onRefresh();
+  };
+
   return <section className="card panel workspace-form-card">
     <h2>Фиксация брака ОТК</h2>
     <label className="form-label">Количество, шт.</label>
@@ -211,7 +225,10 @@ function QCForm({ context, selectedRun, onRefresh }) {
     </select>
     <label className="form-label">Комментарий</label>
     <input className="form-control" value={comment} onChange={e=>setComment(e.target.value)} />
-    <button className="btn primary workspace-save" disabled={!selectedRun || Number(quantity)<=0} onClick={save}>Сохранить запись</button>
+    <div className="qc-actions">
+      <button className="btn primary workspace-save" disabled={!selectedRun || Number(quantity)<=0} onClick={save}>Сохранить брак</button>
+      <button className="btn secondary workspace-save" disabled={!selectedRun} onClick={saveNoDefect}>Проверено, брака нет</button>
+    </div>
     {notice && <div className="notice">{notice}</div>}
   </section>;
 }
