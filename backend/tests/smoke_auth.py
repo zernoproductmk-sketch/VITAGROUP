@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.auth import hash_password
 from app.database import engine
 from app.integrations.coverse import CoverseClient
+from app.master_data_sync import _prepare_reference_rows
 from app.main import app
 from app.norm_admin_service import save_manual_norm
 from app.production_manager_service import verify_shift
@@ -252,6 +253,45 @@ def _test_manual_norm() -> None:
     except ValueError:
         overlap_blocked = True
     assert overlap_blocked, "overlapping production norm was not blocked"
+
+
+def _test_employee_duplicate_preflight() -> None:
+    rows = [
+        {
+            "source_row": 2,
+            "personnel_number": "00123",
+            "full_name": "Test Person",
+            "position_name": "Operator",
+            "department_name": "Production",
+        },
+        {
+            "source_row": 3,
+            "personnel_number": "123",
+            "full_name": "Test Person",
+            "position_name": "Operator",
+            "department_name": "Production",
+        },
+        {
+            "source_row": 4,
+            "personnel_number": "00456",
+            "full_name": "First Person",
+            "position_name": "Operator",
+            "department_name": "Production",
+        },
+        {
+            "source_row": 5,
+            "personnel_number": "456",
+            "full_name": "Other Person",
+            "position_name": "Master",
+            "department_name": "Production",
+        },
+    ]
+
+    prepared, issues = _prepare_reference_rows("employees", rows)
+
+    assert len(prepared) == 1
+    assert len([x for x in issues if x["code"] == "DUPLICATE_SOURCE_ROW"]) == 1
+    assert len([x for x in issues if x["code"] == "DUPLICATE_PERSONNEL_CONFLICT"]) == 2
 
 
 def _test_coverse_pagination() -> None:
@@ -653,6 +693,7 @@ def main() -> None:
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_employee_duplicate_preflight()
     _test_coverse_pagination()
     _test_qc_no_defect_confirmation()
     _test_full_shift_lifecycle()
