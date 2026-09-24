@@ -50,6 +50,13 @@ jobs:
         run: python -c "import app.main; print('backend import ok')"
       - name: Run application smoke test
         run: python tests/smoke_auth.py
+      - name: Validate production settings
+        env:
+          ENVIRONMENT: production
+          DATABASE_URL: postgresql+psycopg://vitagroup_ci:vitagroup_ci@127.0.0.1:5432/vitagroup_ci
+          CORS_ORIGINS: https://corpvitagroup.ru
+          AUTH_JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        run: python -c "from app.config import Settings; Settings(); print('production settings ok')"
       - name: Verify health endpoint dependencies
         run: |
           python - <<'PY'
