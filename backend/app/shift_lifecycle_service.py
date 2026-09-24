@@ -70,10 +70,8 @@ def shift_lifecycle_status(
                     ) AS has_operator_output,
                     EXISTS (
                         SELECT 1
-                        FROM defect_events de
-                        WHERE de.production_run_id=pr.id
-                          AND de.reported_by='QC'
-                          AND de.is_confirmed=true
+                        FROM qc_inspections qi
+                        WHERE qi.production_run_id=pr.id
                     ) AS has_qc,
                     EXISTS (
                         SELECT 1
