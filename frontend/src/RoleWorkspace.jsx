@@ -308,6 +308,29 @@ function ComparePanel({ kind, run }) {
   </section>;
 }
 
+function HistoryTable({ rows = [] }) {
+  return <section className="card panel workspace-history">
+    <div className="panel-head"><h2>История записей за смену</h2><span>{rows.length} строк</span></div>
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Время</th><th>Тип</th><th>Линия</th><th>Заказ</th><th>Продукция</th><th>Количество</th><th>Комментарий / талон</th></tr></thead>
+        <tbody>
+          {rows.map((row) => <tr key={row.id}>
+            <td>{new Date(row.event_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</td>
+            <td>{row.event_type}</td>
+            <td>{row.equipment_code || "—"}</td>
+            <td>{row.order_no || "—"}</td>
+            <td>{row.product_name || "—"}</td>
+            <td>{nf.format(row.quantity || 0)}</td>
+            <td>{row.comment || "—"}</td>
+          </tr>)}
+          {rows.length === 0 && <tr><td colSpan="7"><div className="empty-state">Записей за смену пока нет.</div></td></tr>}
+        </tbody>
+      </table>
+    </div>
+  </section>;
+}
+
 export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
   const [context, setContext] = useState(null);
   const [selectedRunId, setSelectedRunId] = useState(null);
@@ -350,5 +373,7 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
         <ComparePanel kind={kind} run={selectedRun} />
       </div>
     </div>
+
+    <HistoryTable rows={context.recent || []} />
   </>;
 }
