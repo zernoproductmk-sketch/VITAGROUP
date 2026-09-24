@@ -161,20 +161,77 @@ class CoverseClient:
     async def close(self) -> None:
         await self.client.aclose()
 
-    async def read_range(self, document_id: str, sheet_name: str, range_a1: str) -> list[list[Any]]:
+    @staticmethod
+    def _extract_cells_and_pagination(payload: dict[str, Any]) -> tuple[list[list[Any]], dict[str, Any]]:
+        value_range = payload.get("values")
+
+        if isinstance(value_range, dict):
+            cells = value_range.get("cells") or []
+            pagination = value_range.get("pagination") or payload.get("pagination") or {}
+            return cells, pagination
+
+        if isinstance(payload.get("cells"), list):
+            return payload.get("cells") or [], payload.get("pagination") or {}
+
+        if isinstance(value_range, list):
+            return value_range, payload.get("pagination") or {}
+
+        return [], payload.get("pagination") or {}
+
+    async def read_range(
+        self,
+        document_id: str,
+        sheet_name: str,
+        range_a1: str,
+        *,
+        page_size: int = 1000,
+    ) -> list[list[Any]]:
         endpoint = settings.coverse_read_range_path.format(document_id=document_id)
-        response = await self.client.get(
-            endpoint,
-            params={"range": f"'{sheet_name}'!{range_a1}"},
-        )
-        response.raise_for_status()
-        payload = response.json()
-        return (
-            payload.get("values", {}).get("cells")
-            or payload.get("cells")
-            or payload.get("values")
-            or []
-        )
+        offset = 0
+        all_cells: list[list[Any]] = []
+
+        while True:
+            response = await self.client.get(
+                endpoint,
+                params={
+                    "range": f"'{sheet_name}'!{range_a1}",
+                    "offset": offset,
+                    "limit": page_size,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            cells, pagination = self._extract_cells_and_pagination(payload)
+
+            if offset > 0 and cells:
+                # Coverse can return the header again for some range forms.
+                # Do not duplicate it when it is byte-for-byte identical.
+                if all_cells and cells[0] == all_cells[0]:
+                    cells = cells[1:]
+
+            all_cells.extend(cells)
+
+            has_more = pagination.get("hasMore")
+            next_offset = pagination.get("nextOffset")
+            returned = pagination.get("returned")
+
+            if has_more is False:
+                break
+
+            if next_offset is not None:
+                next_offset = int(next_offset)
+                if next_offset <= offset:
+                    break
+                offset = next_offset
+                continue
+
+            page_count = int(returned) if returned is not None else len(cells)
+            if page_count <= 0 or page_count < page_size:
+                break
+
+            offset += page_count
+
+        return all_cells
 
     async def read_source(self, key: str) -> list[dict[str, Any]]:
         source = SOURCES[key]
