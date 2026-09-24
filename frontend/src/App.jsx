@@ -1,3 +1,4 @@
+import NormAdminPage from "./NormAdminPage";
 import ReasonAdminPage from "./ReasonAdminPage";
 import LaunchReadiness from "./LaunchReadiness";
 import ProblemCenter from "./ProblemCenter";
@@ -35,7 +36,8 @@ const menu = [
   { key: "integrations", label: "Интеграции", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"] },
   { key: "users", label: "Пользователи", roles: ["ADMIN"] },
   { key: "launch-readiness", label: "Готовность к запуску", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
-  { key: "reasons", label: "Причины простоев и брака", roles: ["PRODUCTION_MANAGER","ADMIN"] }
+  { key: "reasons", label: "Причины простоев и брака", roles: ["PRODUCTION_MANAGER","ADMIN"] },
+  { key: "norms", label: "Нормативы скорости", roles: ["PRODUCTION_MANAGER","ADMIN"] }
 ];
 
 function defaultSectionForRoles(roles = []) {
@@ -521,7 +523,7 @@ export default function App() {
       <header>
         <div><p>ООО «ВИТА ГРУПП»</p><h1>{title}</h1></div>
         <div className="controls">
-          {section !== "integrations" && section !== "erp-plan" && section !== "users" && section !== "launch-readiness" && section !== "reasons" && <div className="shift-switch">
+          {section !== "integrations" && section !== "erp-plan" && section !== "users" && section !== "launch-readiness" && section !== "reasons" && section !== "norms" && <div className="shift-switch">
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
@@ -566,6 +568,7 @@ export default function App() {
         {section === "users" && <UserAdminPage />}
         {section === "launch-readiness" && <LaunchReadiness onNavigate={(target)=>setSection(target === "launch-readiness" ? "reasons" : (target || "launch-readiness"))} />}
         {section === "reasons" && <ReasonAdminPage />}
+        {section === "norms" && <NormAdminPage />}
       </div>
     </main>
   </div>;
