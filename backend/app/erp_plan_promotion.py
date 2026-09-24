@@ -203,6 +203,40 @@ def _save_order_alias(connection, external_code, order_id):
     )
 
 
+def _fallback_norm(connection, product_id, equipment_id, business_date):
+    if not product_id or not equipment_id or not business_date:
+        return None
+
+    return connection.execute(
+        text(
+            """
+            SELECT ideal_rate_per_hour
+            FROM production_norms
+            WHERE product_id = :product_id
+              AND equipment_id = :equipment_id
+              AND operation_id IS NULL
+              AND valid_from <= :business_date
+              AND (valid_to IS NULL OR valid_to >= :business_date)
+            ORDER BY
+                CASE
+                    WHEN source_system IN ('ERP','1C') THEN 0
+                    WHEN source_system = 'COVERSE' THEN 1
+                    WHEN source_system = 'WEB' THEN 2
+                    ELSE 3
+                END,
+                valid_from DESC,
+                created_at DESC
+            LIMIT 1
+            """
+        ),
+        {
+            "product_id": product_id,
+            "equipment_id": equipment_id,
+            "business_date": business_date,
+        },
+    ).scalar_one_or_none()
+
+
 def _ensure_run(connection, row, order_id, product_id, equipment_id, shift_id):
     existing = connection.execute(
         text(
@@ -239,6 +273,15 @@ def _ensure_run(connection, row, order_id, product_id, equipment_id, shift_id):
         {"shift_id": shift_id},
     ).mappings().first()
 
+    ideal_rate = row.get("ideal_rate_per_hour")
+    if ideal_rate is None:
+        ideal_rate = _fallback_norm(
+            connection,
+            product_id,
+            equipment_id,
+            row.get("business_date"),
+        )
+
     return connection.execute(
         text(
             """
@@ -274,7 +317,7 @@ def _ensure_run(connection, row, order_id, product_id, equipment_id, shift_id):
             "planned_start_at": shift["started_at"] if shift else None,
             "planned_end_at": shift["ended_at"] if shift else None,
             "planned_qty": row.get("plan_qty_pcs"),
-            "ideal_rate_per_hour": row.get("ideal_rate_per_hour"),
+            "ideal_rate_per_hour": ideal_rate,
         },
     ).scalar_one()
 
