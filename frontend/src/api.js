@@ -188,7 +188,8 @@ export const api = {
         runs: [],
         downtime_reasons: [],
         defect_reasons: [],
-        active_downtime: []
+        active_downtime: [],
+        recent: []
       }
     );
   },
