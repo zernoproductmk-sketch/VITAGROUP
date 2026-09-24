@@ -212,7 +212,7 @@ def launch_readiness() -> dict:
                 if norms
                 else "Без нормативов Performance и OEE не могут быть рассчитаны полностью"
             ),
-            "integrations",
+            "norms",
             value=norms,
         )
     )
