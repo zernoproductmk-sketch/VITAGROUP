@@ -175,6 +175,30 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  productionManagerDay: (businessDate) => {
+    const params = new URLSearchParams({ business_date: businessDate });
+    return request(
+      `/api/v1/production-manager/day?${params.toString()}`,
+      {
+        business_date: businessDate,
+        summary: {
+          plan: 0,
+          output: 0,
+          good: 0,
+          qc_defect: 0,
+          downtime_minutes: 0,
+          completion_percent: null,
+          oee: null,
+          open_cases: 0,
+          critical_cases: 0,
+          missing_norm_runs: 0
+        },
+        day: null,
+        night: null,
+        equipment: []
+      }
+    );
+  },
   completeProductionRun: (runId) => strictRequest(
     `/api/v1/shift-master/runs/${runId}/complete`,
     { method: "POST" }
