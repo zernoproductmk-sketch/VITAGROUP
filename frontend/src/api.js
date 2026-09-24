@@ -181,6 +181,22 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  launchReadiness: () => request(
+    "/api/v1/launch-readiness",
+    {
+      summary: {
+        production_ready: false,
+        production_blockers: 0,
+        production_warnings: 0,
+        payroll_ready: false,
+        payroll_blockers: 0,
+        payroll_warnings: 0
+      },
+      counts: {},
+      roles: {},
+      checks: []
+    }
+  ),
   setDemoMode: (enabled) => {
     demoSession = Boolean(enabled);
   },
