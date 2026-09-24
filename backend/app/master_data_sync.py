@@ -343,77 +343,127 @@ def _prepare_reference_rows(source_key: str, rows: list[dict]) -> tuple[list[dic
         rows_to_apply,
         issues: [{row_number, code, severity, message, raw_data}]
     """
-    if source_key != "employees":
-        return rows, []
+    if source_key == "employees":
+        grouped: dict[str, list[dict]] = {}
+        passthrough: list[dict] = []
 
-    grouped: dict[str, list[dict]] = {}
-    passthrough: list[dict] = []
+        for row in rows:
+            key = normalized_personnel_number(row.get("personnel_number"))
+            if not key:
+                passthrough.append(row)
+                continue
+            grouped.setdefault(key, []).append(row)
 
-    for row in rows:
-        key = normalized_personnel_number(row.get("personnel_number"))
-        if not key:
-            passthrough.append(row)
-            continue
-        grouped.setdefault(key, []).append(row)
+        prepared = list(passthrough)
+        issues: list[dict] = []
 
-    prepared = list(passthrough)
-    issues: list[dict] = []
+        for personnel_number, group in grouped.items():
+            if len(group) == 1:
+                prepared.append(group[0])
+                continue
 
-    for personnel_number, group in grouped.items():
-        if len(group) == 1:
-            prepared.append(group[0])
-            continue
+            fingerprints = {
+                (
+                    str(item.get("full_name") or "").strip().casefold(),
+                    str(item.get("position_name") or "").strip().casefold(),
+                    str(item.get("department_name") or "").strip().casefold(),
+                )
+                for item in group
+            }
 
-        fingerprints = {
-            (
-                str(item.get("full_name") or "").strip().casefold(),
-                str(item.get("position_name") or "").strip().casefold(),
-                str(item.get("department_name") or "").strip().casefold(),
-            )
-            for item in group
-        }
+            if len(fingerprints) == 1:
+                prepared.append(group[0])
+                for duplicate in group[1:]:
+                    issues.append(
+                        {
+                            "row_number": duplicate.get("source_row"),
+                            "code": "DUPLICATE_SOURCE_ROW",
+                            "severity": "WARNING",
+                            "message": (
+                                "Точный дубль сотрудника по табельному номеру; "
+                                "строка не загружена повторно"
+                            ),
+                            "raw_data": {
+                                "personnel_number": personnel_number,
+                                "source_row": duplicate.get("source_row"),
+                            },
+                        }
+                    )
+                continue
 
-        if len(fingerprints) == 1:
-            prepared.append(group[0])
-            for duplicate in group[1:]:
+            for conflicting in group:
                 issues.append(
                     {
-                        "row_number": duplicate.get("source_row"),
-                        "code": "DUPLICATE_SOURCE_ROW",
-                        "severity": "WARNING",
+                        "row_number": conflicting.get("source_row"),
+                        "code": "DUPLICATE_PERSONNEL_CONFLICT",
+                        "severity": "ERROR",
                         "message": (
-                            "Точный дубль сотрудника по табельному номеру; "
-                            "строка не загружена повторно"
+                            "Один табельный номер встречается в нескольких "
+                            "различающихся строках. Автоматическая загрузка "
+                            "этого сотрудника заблокирована."
                         ),
                         "raw_data": {
                             "personnel_number": personnel_number,
-                            "source_row": duplicate.get("source_row"),
+                            "source_row": conflicting.get("source_row"),
                         },
                     }
                 )
-            continue
 
-        for conflicting in group:
-            issues.append(
-                {
-                    "row_number": conflicting.get("source_row"),
-                    "code": "DUPLICATE_PERSONNEL_CONFLICT",
-                    "severity": "ERROR",
-                    "message": (
-                        "Один табельный номер встречается в нескольких "
-                        "различающихся строках. Автоматическая загрузка "
-                        "этого сотрудника заблокирована."
-                    ),
-                    "raw_data": {
-                        "personnel_number": personnel_number,
-                        "source_row": conflicting.get("source_row"),
-                    },
-                }
-            )
+        prepared.sort(key=lambda item: int(item.get("source_row") or 0))
+        return prepared, issues
 
-    prepared.sort(key=lambda item: int(item.get("source_row") or 0))
-    return prepared, issues
+    if source_key == "products":
+        grouped: dict[str, list[dict]] = {}
+        passthrough: list[dict] = []
 
+        for row in rows:
+            article = str(row.get("article") or "").strip()
+            if not article:
+                passthrough.append(row)
+                continue
+            grouped.setdefault(article.casefold(), []).append(row)
+
+        prepared = list(passthrough)
+        issues: list[dict] = []
+
+        for article_key, group in grouped.items():
+            if len(group) == 1:
+                prepared.append(group[0])
+                continue
+
+            names = {
+                str(item.get("name") or "").strip().casefold()
+                for item in group
+                if str(item.get("name") or "").strip()
+            }
+
+            if len(names) <= 1:
+                # One product may legitimately have several warehouse codes.
+                prepared.extend(group)
+                continue
+
+            for conflicting in group:
+                issues.append(
+                    {
+                        "row_number": conflicting.get("source_row"),
+                        "code": "DUPLICATE_ARTICLE_NAME_CONFLICT",
+                        "severity": "ERROR",
+                        "message": (
+                            "Один артикул связан с разными наименованиями. "
+                            "Группа заблокирована до ручной проверки; "
+                            "складские коды не будут объединены автоматически."
+                        ),
+                        "raw_data": {
+                            "article": str(conflicting.get("article") or "").strip(),
+                            "source_row": conflicting.get("source_row"),
+                        },
+                    }
+                )
+
+        prepared.sort(key=lambda item: int(item.get("source_row") or 0))
+        return prepared, issues
+
+    return rows, []
 
 HANDLERS = {
     "employees": _upsert_employee,
