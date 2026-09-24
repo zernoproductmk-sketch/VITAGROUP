@@ -547,6 +547,8 @@ export const api = {
   integrationDashboard: () => request("/api/v1/reference/dashboard", integrationFallback),
   unresolved: () => request("/api/v1/reference/unresolved?limit=200", { rows: unresolvedFallback }),
   masterSources: () => request("/api/v1/master-data/sources", []),
+  previewMasterSource: (key) => strictRequest(`/api/v1/master-data/preview/${key}`, { method: "POST" }),
+  pilotSyncMasterData: () => strictRequest("/api/v1/master-data/pilot-sync", { method: "POST" }),
   coverseSources: () => request("/api/v1/integrations/coverse/sources", []),
   syncMasterData: () => request("/api/v1/master-data/sync", { demo: true }, { method: "POST" }),
   syncMasterSource: (key) => request(`/api/v1/master-data/sync/${key}`, { source: key, status: "DEMO" }, { method: "POST" }),
