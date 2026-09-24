@@ -1,3 +1,4 @@
+import ShiftLifecyclePage from "./ShiftLifecyclePage";
 import TestShiftPage from "./TestShiftPage";
 import NormAdminPage from "./NormAdminPage";
 import ReasonAdminPage from "./ReasonAdminPage";
@@ -39,7 +40,8 @@ const menu = [
   { key: "launch-readiness", label: "Готовность к запуску", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "reasons", label: "Причины простоев и брака", roles: ["PRODUCTION_MANAGER","ADMIN"] },
   { key: "norms", label: "Нормативы скорости", roles: ["PRODUCTION_MANAGER","ADMIN"] },
-  { key: "test-shift", label: "Тестовая смена", roles: ["PRODUCTION_MANAGER","ADMIN"] }
+  { key: "test-shift", label: "Тестовая смена", roles: ["PRODUCTION_MANAGER","ADMIN"] },
+  { key: "shift-lifecycle", label: "Сквозной тест смены", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] }
 ];
 
 function defaultSectionForRoles(roles = []) {
@@ -525,7 +527,7 @@ export default function App() {
       <header>
         <div><p>ООО «ВИТА ГРУПП»</p><h1>{title}</h1></div>
         <div className="controls">
-          {section !== "integrations" && section !== "erp-plan" && section !== "users" && section !== "launch-readiness" && section !== "reasons" && section !== "norms" && section !== "test-shift" && <div className="shift-switch">
+          {section !== "integrations" && section !== "erp-plan" && section !== "users" && section !== "launch-readiness" && section !== "reasons" && section !== "norms" && section !== "test-shift" && section !== "shift-lifecycle" && <div className="shift-switch">
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
@@ -575,6 +577,12 @@ export default function App() {
           onOpenERP={()=>setSection("erp-plan")}
           onOpenNorms={()=>setSection("norms")}
           onOpenMaster={(shiftCode)=>{setShift(shiftCode);setSection("shift-master");}}
+        />}
+        {section === "shift-lifecycle" && <ShiftLifecyclePage
+          onNavigate={(target,shiftCode)=>{
+            if (shiftCode) setShift(shiftCode);
+            setSection(target || "shift-lifecycle");
+          }}
         />}
       </div>
     </main>
