@@ -122,6 +122,8 @@ const demoCandidates = {
 };
 
 const TOKEN_KEY = "vitagroup_access_token";
+let demoSession = false;
+const BUILD_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
 function getToken() {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -168,13 +170,20 @@ async function request(path, fallbackValue, options = {}) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("vitagroup-auth-expired"));
       }
+    }
+
+    if (demoSession || BUILD_DEMO_MODE) {
       return fallbackValue;
     }
-    return fallbackValue;
+
+    throw error;
   }
 }
 
 export const api = {
+  setDemoMode: (enabled) => {
+    demoSession = Boolean(enabled);
+  },
   problemCenter: (businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
