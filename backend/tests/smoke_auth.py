@@ -11,6 +11,15 @@ from app.auth import hash_password
 from app.database import engine
 from app.main import app
 from app.norm_admin_service import save_manual_norm
+from app.production_manager_service import verify_shift
+from app.reconciliation_service import save_reconciliation_case, shift_reconciliation
+from app.shift_master_service import close_shift, complete_production_run
+from app.workspace_service import (
+    record_accounting_control,
+    record_operator_output,
+    record_qc_defect,
+    record_warehouse_receipt,
+)
 from app.shifts import ensure_shift
 
 
@@ -242,11 +251,244 @@ def _test_manual_norm() -> None:
     assert overlap_blocked, "overlapping production norm was not blocked"
 
 
+def _test_full_shift_lifecycle() -> None:
+    business_date = date(2026, 9, 20)
+    shift_code = "DAY"
+
+    with engine.begin() as connection:
+        admin_id = connection.execute(
+            text("SELECT id FROM users WHERE email=:email"),
+            {"email": ADMIN_EMAIL},
+        ).scalar_one()
+
+        product_id = connection.execute(
+            text(
+                """
+                INSERT INTO products (code, article, name, unit, is_active)
+                VALUES ('CI-LIFE-PRODUCT','CI-LIFE-PRODUCT','CI Lifecycle Product','pcs',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        equipment_id = connection.execute(
+            text(
+                """
+                INSERT INTO equipment (code, name, is_active)
+                VALUES ('CI-LIFE-LINE','CI Lifecycle Line',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        defect_reason_id = connection.execute(
+            text(
+                """
+                INSERT INTO defect_reasons (code, category, name, is_active)
+                VALUES ('CI-QC','QUALITY','CI QC defect',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        shift_id = ensure_shift(connection, business_date, shift_code)
+
+        order_id = connection.execute(
+            text(
+                """
+                INSERT INTO production_orders (
+                    order_no,
+                    product_id,
+                    planned_quantity,
+                    status
+                ) VALUES (
+                    'CI-LIFE-ORDER',
+                    :product_id,
+                    1000,
+                    'PLANNED'
+                )
+                ON CONFLICT (order_no, product_id)
+                DO UPDATE SET planned_quantity=1000, status='PLANNED'
+                RETURNING id
+                """
+            ),
+            {"product_id": product_id},
+        ).scalar_one()
+
+        run_id = connection.execute(
+            text(
+                """
+                INSERT INTO production_runs (
+                    shift_id,
+                    equipment_id,
+                    product_id,
+                    production_order_id,
+                    planned_qty,
+                    ideal_rate_per_hour,
+                    status
+                ) VALUES (
+                    :shift_id,
+                    :equipment_id,
+                    :product_id,
+                    :order_id,
+                    1000,
+                    5000,
+                    'PLANNED'
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "shift_id": shift_id,
+                "equipment_id": equipment_id,
+                "product_id": product_id,
+                "order_id": order_id,
+            },
+        ).scalar_one()
+
+        shift_times = connection.execute(
+            text(
+                """
+                SELECT started_at, ended_at
+                FROM shifts
+                WHERE id=:shift_id
+                """
+            ),
+            {"shift_id": shift_id},
+        ).mappings().one()
+
+    user = {"id": str(admin_id)}
+    t1 = shift_times["started_at"] + timedelta(hours=1)
+    t2 = shift_times["started_at"] + timedelta(hours=2)
+    t3 = shift_times["started_at"] + timedelta(hours=3)
+    t4 = shift_times["started_at"] + timedelta(hours=4)
+
+    record_operator_output(
+        user,
+        run_id,
+        Decimal("1000"),
+        Decimal("0"),
+        t1,
+        "CI lifecycle output",
+        "ci-life-output",
+    )
+
+    record_qc_defect(
+        user,
+        run_id,
+        Decimal("20"),
+        defect_reason_id,
+        t2,
+        "CI lifecycle QC",
+        "ci-life-qc",
+    )
+
+    record_accounting_control(
+        user,
+        run_id,
+        Decimal("98"),
+        Decimal("10"),
+        t3,
+        "CI-TICKET",
+        "CI lifecycle accounting",
+        "ci-life-accounting",
+    )
+
+    record_warehouse_receipt(
+        user,
+        run_id,
+        Decimal("980"),
+        t4,
+        "CI-WH",
+        "ci-life-warehouse",
+    )
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO erp_production_facts (
+                    erp_document_id,
+                    erp_document_no,
+                    production_order_id,
+                    product_id,
+                    production_run_id,
+                    occurred_at,
+                    quantity,
+                    defect_quantity
+                ) VALUES (
+                    'CI-LIFE-ERP',
+                    'CI-LIFE-ERP',
+                    :order_id,
+                    :product_id,
+                    :run_id,
+                    :occurred_at,
+                    980,
+                    20
+                )
+                """
+            ),
+            {
+                "order_id": order_id,
+                "product_id": product_id,
+                "run_id": run_id,
+                "occurred_at": t4,
+            },
+        )
+
+    reconciliation = shift_reconciliation(business_date, shift_code)
+    row = next(
+        item for item in reconciliation["rows"]
+        if item["production_run_id"] == str(run_id)
+    )
+    assert row["severity"] in {"WARNING", "CRITICAL"}
+    assert row["delta_qc_accountant"] == 0
+    assert row["delta_accountant_warehouse"] == 0
+    assert row["delta_warehouse_erp"] == 0
+
+    save_reconciliation_case(
+        production_run_id=run_id,
+        status="RESOLVED",
+        reason_code="QC_DIFFERENCE",
+        comment="CI lifecycle: confirmed QC defect explains operator/QC delta",
+        user_id=admin_id,
+    )
+
+    completed = complete_production_run(run_id, admin_id)
+    assert completed["status"] == "COMPLETED"
+
+    closed = close_shift(business_date, shift_code, admin_id)
+    assert closed["status"] == "CLOSED"
+
+    verified = verify_shift(business_date, shift_code, admin_id)
+    assert verified["status"] == "VERIFIED"
+
+    with engine.begin() as connection:
+        final_shift_status = connection.execute(
+            text("SELECT status FROM shifts WHERE id=:id"),
+            {"id": shift_id},
+        ).scalar_one()
+        final_run_status = connection.execute(
+            text("SELECT status FROM production_runs WHERE id=:id"),
+            {"id": run_id},
+        ).scalar_one()
+
+    assert final_shift_status == "VERIFIED"
+    assert final_run_status == "VERIFIED"
+
+
 def main() -> None:
     _create_user(ADMIN_EMAIL, ADMIN_PASSWORD, "ADMIN")
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_full_shift_lifecycle()
 
     client = TestClient(app)
 
