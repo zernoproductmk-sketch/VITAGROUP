@@ -7,7 +7,7 @@ function Kpi({ label, value, suffix="" }) {
   return <div className="card mini-kpi"><span>{label}</span><b>{value==null?"—":`${nf.format(value)}${suffix}`}</b></div>;
 }
 
-function ShiftBlock({ title, block, onOpenMaster, onOpenControl }) {
+function ShiftBlock({ title, block, onOpenMaster, onOpenControl, canVerify, onVerify }) {
   if (!block) return null;
   return <section className="card panel manager-shift-block">
     <div className="panel-head">
@@ -24,13 +24,17 @@ function ShiftBlock({ title, block, onOpenMaster, onOpenControl }) {
     <div className="action-row">
       <button className="btn secondary" onClick={()=>onOpenMaster(block.shift.type)}>Открыть кабинет мастера</button>
       <button className="btn ghost" onClick={()=>onOpenControl(block.shift.type)}>Открыть контроль смены</button>
+      {canVerify && block.status === "CLOSED" && <button className="btn primary" onClick={()=>onVerify(block.shift.type)}>Подтвердить смену</button>}
+      {block.status === "VERIFIED" && <span className="status success">VERIFIED</span>}
     </div>
   </section>;
 }
 
-export default function ProductionManagerDashboard({ businessDate, onOpenMaster, onOpenControl }) {
+export default function ProductionManagerDashboard({ businessDate, onOpenMaster, onOpenControl, canVerify }) {
   const [data,setData]=useState(null);
-  useEffect(()=>{ setData(null); api.productionManagerDay(businessDate).then(setData); },[businessDate]);
+  const [message,setMessage]=useState("");
+  const refresh=async()=>setData(await api.productionManagerDay(businessDate));
+  useEffect(()=>{ setData(null); setMessage(""); refresh(); },[businessDate]);
   if(!data) return <div className="card panel">Загрузка кабинета руководителя производства…</div>;
 
   return <>
@@ -47,9 +51,41 @@ export default function ProductionManagerDashboard({ businessDate, onOpenMaster,
       <Kpi label="Открытых кейсов" value={data.summary.open_cases} />
     </div>
 
+    {message && <div className="notice">{message}</div>}
+
     <div className="two-col manager-shifts">
-      <ShiftBlock title="Дневная смена" block={data.day} onOpenMaster={onOpenMaster} onOpenControl={onOpenControl} />
-      <ShiftBlock title="Ночная смена" block={data.night} onOpenMaster={onOpenMaster} onOpenControl={onOpenControl} />
+      <ShiftBlock
+        title="Дневная смена"
+        block={data.day}
+        onOpenMaster={onOpenMaster}
+        onOpenControl={onOpenControl}
+        canVerify={canVerify}
+        onVerify={async(shiftCode)=>{
+          try {
+            const result=await api.verifyShift(businessDate,shiftCode);
+            setMessage(result.already_verified ? "Смена уже была подтверждена." : "Смена подтверждена. Производственные запуски переведены в VERIFIED.");
+            await refresh();
+          } catch(error) {
+            setMessage(error.message || "Не удалось подтвердить смену");
+          }
+        }}
+      />
+      <ShiftBlock
+        title="Ночная смена"
+        block={data.night}
+        onOpenMaster={onOpenMaster}
+        onOpenControl={onOpenControl}
+        canVerify={canVerify}
+        onVerify={async(shiftCode)=>{
+          try {
+            const result=await api.verifyShift(businessDate,shiftCode);
+            setMessage(result.already_verified ? "Смена уже была подтверждена." : "Смена подтверждена. Производственные запуски переведены в VERIFIED.");
+            await refresh();
+          } catch(error) {
+            setMessage(error.message || "Не удалось подтвердить смену");
+          }
+        }}
+      />
     </div>
 
     <section className="card panel">
