@@ -12,8 +12,12 @@ export default function LoginPage({ onLogin, onDemo, allowDemo }) {
     setBusy(true);
     setError("");
     try {
-      const result = await api.login(email, password);
-      onLogin(result.user);
+      await api.login(email, password);
+      const current = await api.authMe();
+      if (!current) {
+        throw new Error("Не удалось подтвердить учетную запись после входа");
+      }
+      onLogin(current);
     } catch (err) {
       setError(err.message || "Не удалось выполнить вход");
     } finally {
