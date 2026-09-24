@@ -116,7 +116,10 @@ def _assert_no_overlap(
             WHERE n.product_id = :product_id
               AND n.equipment_id = :equipment_id
               AND n.operation_id IS NULL
-              AND (:norm_id IS NULL OR n.id <> :norm_id)
+              AND (
+                    CAST(:norm_id AS uuid) IS NULL
+                    OR n.id <> CAST(:norm_id AS uuid)
+                  )
               AND daterange(
                     n.valid_from,
                     COALESCE(n.valid_to + 1, 'infinity'::date),
