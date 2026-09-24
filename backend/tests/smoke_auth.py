@@ -11,11 +11,12 @@ from sqlalchemy import text
 from app.auth import hash_password
 from app.database import engine
 from app.integrations.coverse import CoverseClient
-from app.master_data_sync import _prepare_reference_rows
+from app.master_data_sync import _prepare_reference_rows, _resolve_previous_issues
 from app.main import app
 from app.norm_admin_service import save_manual_norm
 from app.production_manager_service import verify_shift
 from app.reconciliation_service import save_reconciliation_case, shift_reconciliation
+from app.reference_sources import REFERENCE_SOURCES
 from app.shift_master_service import close_shift, complete_production_run
 from app.workspace_service import (
     record_accounting_control,
@@ -253,6 +254,62 @@ def _test_manual_norm() -> None:
     except ValueError:
         overlap_blocked = True
     assert overlap_blocked, "overlapping production norm was not blocked"
+
+
+def _test_master_issue_resolution() -> None:
+    source = REFERENCE_SOURCES["employees"]
+
+    with engine.begin() as connection:
+        issue_id = connection.execute(
+            text(
+                """
+                INSERT INTO master_data_sync_issues (
+                    source_system,
+                    source_key,
+                    source_document_id,
+                    source_sheet,
+                    source_row,
+                    issue_code,
+                    severity,
+                    message,
+                    status
+                ) VALUES (
+                    'COVERSE',
+                    :source_key,
+                    :document_id,
+                    :sheet,
+                    999,
+                    'CI_STALE_ISSUE',
+                    'WARNING',
+                    'CI stale issue',
+                    'OPEN'
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "source_key": source.key,
+                "document_id": source.document_id,
+                "sheet": source.sheet_name,
+            },
+        ).scalar_one()
+
+        resolved = _resolve_previous_issues(connection, source)
+        assert resolved >= 1
+
+        row = connection.execute(
+            text(
+                """
+                SELECT status, resolved_at
+                FROM master_data_sync_issues
+                WHERE id=:id
+                """
+            ),
+            {"id": issue_id},
+        ).mappings().one()
+
+    assert row["status"] == "RESOLVED"
+    assert row["resolved_at"] is not None
 
 
 def _test_product_duplicate_preflight() -> None:
@@ -732,6 +789,7 @@ def main() -> None:
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_master_issue_resolution()
     _test_product_duplicate_preflight()
     _test_employee_duplicate_preflight()
     _test_coverse_pagination()
