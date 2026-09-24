@@ -38,8 +38,8 @@ def context(
 @router.post("/create")
 def create(
     business_date: date,
+    user: CurrentUser,
     shift_code: str = Query(pattern="^(DAY|NIGHT)$"),
-    user: CurrentUser = None,
 ):
     try:
         return create_test_shift(
