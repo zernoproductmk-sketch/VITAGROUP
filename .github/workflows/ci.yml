@@ -9,9 +9,28 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vitagroup_ci
+          POSTGRES_USER: vitagroup_ci
+          POSTGRES_PASSWORD: vitagroup_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vitagroup_ci -d vitagroup_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgresql+psycopg://vitagroup_ci:vitagroup_ci@127.0.0.1:5432/vitagroup_ci
+      AUTH_JWT_SECRET: ci-only-secret-that-is-long-enough-and-not-used-anywhere
+      ENVIRONMENT: test
+      BUSINESS_TIMEZONE: Europe/Moscow
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,11 +42,25 @@ jobs:
           pip install .
       - name: Compile backend
         run: python -m compileall -q app
+      - name: Apply all database migrations
+        run: python -m app.migrate --path ../database/migrations
+      - name: Verify migration idempotency
+        run: python -m app.migrate --path ../database/migrations
       - name: Import application
-        env:
-          DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci
-          AUTH_JWT_SECRET: ci-only-secret-that-is-long-enough-and-not-used-anywhere
         run: python -c "import app.main; print('backend import ok')"
+      - name: Verify health endpoint dependencies
+        run: |
+          python - <<'PY'
+          from sqlalchemy import text
+          from app.database import engine
+          with engine.connect() as connection:
+              assert connection.execute(text("SELECT 1")).scalar_one() == 1
+              latest = connection.execute(
+                  text("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1")
+              ).scalar_one()
+              assert latest == "012_reconciliation_cases.sql", latest
+          print("database and migrations ok")
+          PY
 
   frontend:
     runs-on: ubuntu-latest
@@ -42,4 +75,30 @@ jobs:
       - name: Install frontend
         run: npm install
       - name: Build frontend
+        env:
+          VITE_DEMO_MODE: "false"
         run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose
+        env:
+          POSTGRES_DB: vitagroup
+          POSTGRES_USER: vitagroup
+          POSTGRES_PASSWORD: ci-placeholder-password
+          ENVIRONMENT: production
+          CORS_ORIGINS: https://corpvitagroup.ru
+          BUSINESS_TIMEZONE: Europe/Moscow
+          AUTH_JWT_SECRET: ci-only-secret-that-is-long-enough-and-not-used-anywhere
+          AUTH_ACCESS_TOKEN_MINUTES: 480
+          AUTH_MAX_FAILED_ATTEMPTS: 5
+          AUTH_LOCK_MINUTES: 15
+          COVERSE_API_TOKEN: ""
+          COVERSE_API_BASE_URL: https://api.coverse.team
+          COVERSE_READ_RANGE_PATH: /v1/documents/{document_id}/values
+          YANDEX_PLAN_PUBLIC_URL: ""
+          YANDEX_PLAN_RESOURCE_PATH: ""
+          BACKUP_RETENTION_DAYS: 14
+        run: docker compose config >/dev/null
