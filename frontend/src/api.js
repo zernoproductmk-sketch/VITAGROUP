@@ -181,6 +181,18 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  testShiftContext: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return strictRequest(`/api/v1/test-shift?${params.toString()}`);
+  },
+  createTestShift: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return strictRequest(`/api/v1/test-shift/create?${params.toString()}`, { method: "POST" });
+  },
+  assignTestShiftStaff: (runId, employeeIds) => strictRequest(
+    `/api/v1/test-shift/runs/${runId}/staff`,
+    { method: "POST", body: JSON.stringify({ employee_ids: employeeIds }) }
+  ),
   adminNorms: () => strictRequest("/api/v1/admin/norms"),
   adminSaveNorm: (payload) => strictRequest(
     "/api/v1/admin/norms",
