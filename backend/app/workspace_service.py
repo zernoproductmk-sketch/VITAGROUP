@@ -554,3 +554,43 @@ def record_accounting_control(user, run_id, packages_qty, qty_per_package, obser
         ).scalar_one()
 
     return {"status": "ok", "event_id": str(event_id), "quantity": quantity}
+
+
+def record_operator_defect(user, run_id, quantity, reason_id, occurred_at, comment, client_event_id):
+    if quantity <= 0:
+        raise ValueError("Количество брака должно быть больше нуля")
+
+    with engine.begin() as connection:
+        run = _load_run(connection, run_id)
+        event_at = _checked_time(run, occurred_at)
+        event_id = connection.execute(
+            text("""
+                INSERT INTO defect_events (
+                    production_run_id, occurred_at, quantity, defect_reason_id,
+                    reported_by, is_confirmed, source_system, source_record_id,
+                    entered_by_user_id, comment
+                ) VALUES (
+                    :run_id, :event_at, :quantity, :reason_id,
+                    'OPERATOR', false, 'WEB', :source_id, :user_id, :comment
+                )
+                ON CONFLICT (source_system, source_record_id)
+                WHERE source_record_id IS NOT NULL
+                DO UPDATE SET
+                    quantity = EXCLUDED.quantity,
+                    defect_reason_id = EXCLUDED.defect_reason_id,
+                    occurred_at = EXCLUDED.occurred_at,
+                    comment = EXCLUDED.comment
+                RETURNING id
+            """),
+            {
+                "run_id": run_id,
+                "event_at": event_at,
+                "quantity": quantity,
+                "reason_id": reason_id,
+                "source_id": f"WEB:{client_event_id}",
+                "user_id": UUID(user["id"]),
+                "comment": comment,
+            },
+        ).scalar_one()
+
+    return {"status": "ok", "event_id": str(event_id), "occurred_at": event_at.isoformat()}
