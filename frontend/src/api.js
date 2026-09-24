@@ -175,6 +175,25 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  shiftMasterDashboard: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(
+      `/api/v1/shift-master/dashboard${suffix}`,
+      {
+        shift: { business_date: businessDate || "", type: shiftCode || "DAY", label: shiftCode === "NIGHT" ? "НОЧЬ" : "ДЕНЬ", time: shiftCode === "NIGHT" ? "21:00–09:00" : "09:00–21:00" },
+        kpi: { oee: null, availability: null, performance: null, quality: null },
+        production: { plan: 0, operator_output: 0, good_product: 0, operator_defect: 0, qc_defect: 0, warehouse_received: 0, erp_fact: 0 },
+        time: { planned_minutes: 0, downtime_minutes: 0, runtime_minutes: 0 },
+        expected_progress_percent: 0,
+        summary: { lines: 0, running: 0, downtime: 0, problem_lines: 0, staff: 0 },
+        lines: [],
+        alerts: []
+      }
+    );
+  },
   reconciliationControl: (businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
