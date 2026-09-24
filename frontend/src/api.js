@@ -181,6 +181,10 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  shiftLifecycle: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return strictRequest(`/api/v1/shift-lifecycle?${params.toString()}`);
+  },
   testShiftContext: (businessDate, shiftCode) => {
     const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
     return strictRequest(`/api/v1/test-shift?${params.toString()}`);
