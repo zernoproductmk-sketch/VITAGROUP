@@ -567,6 +567,90 @@ def stop_downtime(downtime_id, ended_at):
     return {"status": "ok", "downtime_id": str(downtime_id), "ended_at": event_at.isoformat()}
 
 
+def _record_qc_inspection(
+    connection,
+    *,
+    run_id,
+    checked_at,
+    result,
+    defect_quantity,
+    user_id,
+    comment,
+    source_id,
+):
+    return connection.execute(
+        text(
+            """
+            INSERT INTO qc_inspections (
+                production_run_id,
+                checked_at,
+                result,
+                defect_quantity,
+                source_system,
+                source_record_id,
+                entered_by_user_id,
+                comment
+            ) VALUES (
+                :run_id,
+                :checked_at,
+                :result,
+                :defect_quantity,
+                'WEB',
+                :source_id,
+                :user_id,
+                :comment
+            )
+            ON CONFLICT (source_system, source_record_id)
+            WHERE source_record_id IS NOT NULL
+            DO UPDATE SET
+                checked_at = EXCLUDED.checked_at,
+                result = EXCLUDED.result,
+                defect_quantity = EXCLUDED.defect_quantity,
+                comment = EXCLUDED.comment
+            RETURNING id
+            """
+        ),
+        {
+            "run_id": run_id,
+            "checked_at": checked_at,
+            "result": result,
+            "defect_quantity": defect_quantity,
+            "source_id": source_id,
+            "user_id": user_id,
+            "comment": comment,
+        },
+    ).scalar_one()
+
+
+def record_qc_no_defect(
+    user,
+    run_id,
+    occurred_at,
+    comment,
+    client_event_id,
+):
+    with engine.begin() as connection:
+        run = _load_run(connection, run_id)
+        event_at = _checked_time(run, occurred_at)
+        inspection_id = _record_qc_inspection(
+            connection,
+            run_id=run_id,
+            checked_at=event_at,
+            result="NO_DEFECT",
+            defect_quantity=0,
+            user_id=UUID(user["id"]),
+            comment=comment,
+            source_id=f"WEB:{client_event_id}",
+        )
+
+    return {
+        "status": "ok",
+        "inspection_id": str(inspection_id),
+        "occurred_at": event_at.isoformat(),
+        "result": "NO_DEFECT",
+    }
+
+
 def record_qc_defect(user, run_id, quantity, reason_id, occurred_at, comment, client_event_id):
     if quantity <= 0:
         raise ValueError("Количество брака должно быть больше нуля")
@@ -603,6 +687,17 @@ def record_qc_defect(user, run_id, quantity, reason_id, occurred_at, comment, cl
                 "comment": comment,
             },
         ).scalar_one()
+
+        _record_qc_inspection(
+            connection,
+            run_id=run_id,
+            checked_at=event_at,
+            result="DEFECT_RECORDED",
+            defect_quantity=quantity,
+            user_id=UUID(user["id"]),
+            comment=comment,
+            source_id=f"WEB:{client_event_id}:CHECK",
+        )
 
     return {"status": "ok", "event_id": str(event_id), "occurred_at": event_at.isoformat()}
 
