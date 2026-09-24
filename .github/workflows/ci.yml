@@ -92,6 +92,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate infrastructure shell scripts
+        run: sh -n infra/*.sh
+      - name: Validate Caddy configuration
+        run: docker run --rm -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
       - name: Validate Docker Compose
         env:
           POSTGRES_DB: vitagroup
