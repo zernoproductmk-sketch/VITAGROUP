@@ -266,26 +266,29 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
             recent_rows = connection.execute(
                 text("""
                     SELECT
-                        de.id,
-                        de.occurred_at AS event_at,
-                        'Брак ОТК' AS event_type,
-                        de.quantity,
+                        qi.id,
+                        qi.checked_at AS event_at,
+                        CASE
+                            WHEN qi.result = 'NO_DEFECT'
+                            THEN 'ОТК — без брака'
+                            ELSE 'Брак ОТК'
+                        END AS event_type,
+                        qi.defect_quantity AS quantity,
                         e.code AS equipment_code,
                         p.name AS product_name,
                         po.order_no,
-                        de.comment
-                    FROM defect_events de
-                    JOIN production_runs pr ON pr.id = de.production_run_id
+                        qi.comment
+                    FROM qc_inspections qi
+                    JOIN production_runs pr ON pr.id = qi.production_run_id
                     JOIN equipment e ON e.id = pr.equipment_id
                     JOIN products p ON p.id = pr.product_id
                     LEFT JOIN production_orders po ON po.id = pr.production_order_id
                     JOIN shifts s ON s.id = pr.shift_id
                     JOIN shift_types st ON st.id = s.shift_type_id
-                    WHERE de.source_system = 'WEB'
-                      AND de.reported_by = 'QC'
+                    WHERE qi.source_system = 'WEB'
                       AND s.business_date = :business_date
                       AND st.code = :shift_code
-                    ORDER BY de.occurred_at DESC
+                    ORDER BY qi.checked_at DESC
                     LIMIT 50
                 """),
                 {"business_date": business_date, "shift_code": shift_code},
