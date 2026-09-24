@@ -12,9 +12,9 @@ from app.main import app
 from app.shifts import ensure_shift
 
 
-ADMIN_EMAIL = "ci-admin@vitagroup.local"
+ADMIN_EMAIL = "ci-admin@example.com"
 ADMIN_PASSWORD = "AdminSmokePass123!"
-OPERATOR_EMAIL = "ci-operator@vitagroup.local"
+OPERATOR_EMAIL = "ci-operator@example.com"
 OPERATOR_PASSWORD = "OperatorSmokePass123!"
 
 
