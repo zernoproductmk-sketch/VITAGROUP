@@ -53,7 +53,7 @@ def shift_master_dashboard(
 
     if not runs:
         return {
-            "shift": summary["shift"],
+            "shift": {**summary["shift"], "status": summary["status"]},
             "kpi": summary["kpi"],
             "production": summary["production"],
             "time": summary["time"],
