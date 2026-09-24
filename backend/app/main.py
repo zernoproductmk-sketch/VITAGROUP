@@ -23,6 +23,7 @@ from .launch_readiness_routes import router as launch_readiness_router
 from .reason_admin_routes import router as reason_admin_router
 from .norm_admin_routes import router as norm_admin_router
 from .test_shift_routes import router as test_shift_router
+from .shift_lifecycle_routes import router as shift_lifecycle_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -58,6 +59,7 @@ app.include_router(launch_readiness_router)
 app.include_router(reason_admin_router)
 app.include_router(norm_admin_router)
 app.include_router(test_shift_router)
+app.include_router(shift_lifecycle_router)
 
 
 @app.get("/health")
