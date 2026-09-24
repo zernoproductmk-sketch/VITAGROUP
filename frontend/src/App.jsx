@@ -314,7 +314,7 @@ function Integrations() {
     <div className="integration-toolbar card">
       <div><h2>Контур интеграций</h2><p>Coverse → staging → сопоставление → рабочие факты</p></div>
       <div className="action-row">
-        <button className="btn secondary" disabled={!!busy} onClick={() => run("Справочники", api.syncMasterData)}>Синхронизировать справочники</button>
+        <button className="btn secondary" disabled={!!busy} onClick={() => run("Пилотная загрузка справочников", api.pilotSyncMasterData)}>Пилотная загрузка справочников</button>
         <button className="btn secondary" disabled={!!busy} onClick={() => run("Сопоставление", api.resolveReferences)}>Разрешить связи</button>
         <button className="btn primary" disabled={!!busy} onClick={() => run("Перенос", api.promoteResolved)}>Перенести RESOLVED</button>
       </div>
