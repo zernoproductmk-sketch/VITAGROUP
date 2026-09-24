@@ -339,8 +339,8 @@ def save_manual_norm(
                         'ideal_rate_per_hour', CAST(:rate AS text),
                         'valid_from', CAST(:valid_from AS text),
                         'valid_to', CASE
-                            WHEN :valid_to IS NULL THEN NULL
-                            ELSE CAST(:valid_to AS text)
+                            WHEN CAST(:valid_to AS date) IS NULL THEN NULL
+                            ELSE CAST(CAST(:valid_to AS date) AS text)
                         END,
                         'source_system', 'WEB'
                     ),
