@@ -20,6 +20,7 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
     volumes:
