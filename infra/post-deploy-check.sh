@@ -25,7 +25,7 @@ echo "${health}" | grep -q '"database":"ok"' || {
   exit 1
 }
 
-echo "${health}" | grep -q '"schema_version":"012_reconciliation_cases.sql"' || {
+echo "${health}" | grep -q '"schema_version":"013_qc_inspections.sql"' || {
   echo "[check] unexpected schema version" >&2
   echo "${health}" >&2
   exit 1
