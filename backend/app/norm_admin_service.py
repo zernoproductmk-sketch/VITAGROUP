@@ -328,13 +328,13 @@ def save_manual_norm(
                     :action,
                     :user_id,
                     jsonb_build_object(
-                        'product_id', :product_id::text,
-                        'equipment_id', :equipment_id::text,
-                        'ideal_rate_per_hour', :rate::text,
-                        'valid_from', :valid_from::text,
+                        'product_id', CAST(:product_id AS text),
+                        'equipment_id', CAST(:equipment_id AS text),
+                        'ideal_rate_per_hour', CAST(:rate AS text),
+                        'valid_from', CAST(:valid_from AS text),
                         'valid_to', CASE
                             WHEN :valid_to IS NULL THEN NULL
-                            ELSE :valid_to::text
+                            ELSE CAST(:valid_to AS text)
                         END,
                         'source_system', 'WEB'
                     ),
