@@ -413,6 +413,30 @@ def shift_close_readiness(
             "message": f"Не определены сотрудники на линиях: {len(no_staff)}",
         })
 
+    with engine.begin() as connection:
+        qc_missing = connection.execute(
+            text(
+                """
+                SELECT count(*)
+                FROM production_runs pr
+                WHERE pr.shift_id = :shift_id
+                  AND pr.status <> 'CANCELLED'
+                  AND NOT EXISTS (
+                        SELECT 1
+                        FROM qc_inspections qi
+                        WHERE qi.production_run_id = pr.id
+                  )
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        ).scalar_one()
+
+    if qc_missing:
+        blockers.append({
+            "code": "QC_NOT_CONFIRMED",
+            "message": f"ОТК не подтвердил проверку запусков: {qc_missing}",
+        })
+
     return {
         "ready": len(blockers) == 0,
         "shift": dashboard["shift"],
