@@ -1,3 +1,4 @@
+import ProblemCenter from "./ProblemCenter";
 import ManagementDashboard from "./ManagementDashboard";
 import ProductionManagerDashboard from "./ProductionManagerDashboard";
 import ShiftMasterDashboard from "./ShiftMasterDashboard";
@@ -16,6 +17,7 @@ const menu = [
   { key: "shift-master", label: "Кабинет мастера", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "production-manager", label: "Руководитель производства", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "management", label: "Руководство", roles: ["MANAGEMENT","ADMIN"] },
+  { key: "problems", label: "Центр проблем", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","ACCOUNTANT_PRODUCTION","ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "operator-workspace", label: "Мое задание", roles: ["OPERATOR","ADMIN"] },
   { key: "qc-workspace", label: "Контроль качества", roles: ["QC","ADMIN"] },
   { key: "warehouse-workspace", label: "Приемка продукции", roles: ["WAREHOUSE","ADMIN"] },
@@ -396,6 +398,7 @@ export default function App() {
   const [recon, setRecon] = useState([]);
   const [shift, setShift] = useState("DAY");
   const [demoMode, setDemoMode] = useState(false);
+  const [problemCount, setProblemCount] = useState(0);
 
   const allowDemo = typeof window !== "undefined" && window.location.hostname !== "corpvitagroup.ru";
 
@@ -437,6 +440,18 @@ export default function App() {
       setRecon(c);
     });
   }, [shift, user?.id]);
+
+  useEffect(() => {
+    if (!user || !data?.shift?.business_date) return;
+    const allowed = roles.some(role => ["SHIFT_MASTER","PRODUCTION_MANAGER","ACCOUNTANT_PRODUCTION","ECONOMIST","MANAGEMENT","ADMIN"].includes(role));
+    if (!allowed) {
+      setProblemCount(0);
+      return;
+    }
+    api.problemCenter(data.shift.business_date, shift).then(result => {
+      setProblemCount(result?.summary?.critical || 0);
+    });
+  }, [user?.id, data?.shift?.business_date, shift, roles.join("|")]);
 
   const logout = () => {
     api.logout();
@@ -485,7 +500,10 @@ export default function App() {
   return <div className="app">
     <aside>
       <div className="brand"><div className="brand-mark">VG</div><div><b>VITAGROUP</b><span>Production & OEE</span></div></div>
-      <nav>{visibleMenu.map(item => <button key={item.key} className={section===item.key ? "active" : ""} onClick={() => setSection(item.key)}>{item.label}</button>)}</nav>
+      <nav>{visibleMenu.map(item => <button key={item.key} className={section===item.key ? "active" : ""} onClick={() => setSection(item.key)}>
+        <span>{item.label}</span>
+        {item.key === "problems" && problemCount > 0 && <b className="nav-badge">{problemCount}</b>}
+      </button>)}</nav>
       <div className="side-user">
         <b>{user.full_name || user.email}</b>
         <span>{demoMode ? "Демонстрационный режим" : roles.join(" · ")}</span>
@@ -516,6 +534,14 @@ export default function App() {
           businessDate={data?.shift?.business_date}
           onOpenProductionManager={()=>setSection("production-manager")}
           onOpenControl={()=>setSection("shift-control")}
+        />}
+        {section === "problems" && <ProblemCenter
+          businessDate={data?.shift?.business_date}
+          shiftCode={shift}
+          onNavigate={(item)=>{
+            if (item.shift_code) setShift(item.shift_code);
+            setSection(item.target_section || "problems");
+          }}
         />}
         {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={data?.shift?.business_date} shiftCode={shift} />}
