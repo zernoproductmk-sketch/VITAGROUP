@@ -175,6 +175,13 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  verifyShift: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return strictRequest(
+      `/api/v1/production-manager/verify-shift?${params.toString()}`,
+      { method: "POST" }
+    );
+  },
   managementOverview: (endDate, days = 14) => {
     const params = new URLSearchParams({ days: String(days) });
     if (endDate) params.set("end_date", endDate);
