@@ -473,6 +473,135 @@ HANDLERS = {
 }
 
 
+def _preview_row_error(source_key: str, row: dict) -> str | None:
+    if source_key == "employees":
+        if not normalized_personnel_number(row.get("personnel_number")):
+            return "Нет табельного номера"
+        if not str(row.get("full_name") or "").strip():
+            return "Нет ФИО"
+        return None
+
+    if source_key == "equipment":
+        canonical = normalized_code(
+            row.get("canonical_form_name") or row.get("name")
+        )
+        if not canonical:
+            return "Нет кода линии"
+        return None
+
+    if source_key == "products":
+        if not str(row.get("name") or "").strip():
+            return "Нет наименования"
+        if not str(row.get("article") or "").strip():
+            return "Нет артикула"
+        if not normalized_code(row.get("warehouse_code")):
+            return "Нет складского кода"
+        return None
+
+    if source_key == "tariffs":
+        if not str(row.get("accrual_type") or "").strip():
+            return "Нет типа начисления"
+        if not str(row.get("unit") or "").strip():
+            return "Нет единицы измерения"
+        if parse_decimal(row.get("rate")) is None:
+            return "Некорректная ставка"
+        if _excel_serial_to_date(row.get("valid_from")) is None:
+            return "Некорректная дата начала"
+        return None
+
+    return None
+
+
+async def preview_reference(source_key: str) -> dict:
+    if source_key not in REFERENCE_SOURCES:
+        raise KeyError(source_key)
+
+    source = REFERENCE_SOURCES[source_key]
+    client = CoverseClient()
+    try:
+        cells = await client.read_range(
+            source.document_id,
+            source.sheet_name,
+            source.range_a1,
+        )
+    finally:
+        await client.close()
+
+    header, source_rows = parse_reference_rows(source, cells)
+    missing_headers = validate_headers(source, header)
+
+    if missing_headers:
+        return {
+            "source": source_key,
+            "status": "BLOCKED",
+            "rows_read": len(source_rows),
+            "rows_ready": 0,
+            "rows_skipped": len(source_rows),
+            "rows_error": 0,
+            "missing_headers": missing_headers,
+            "issue_counts": {
+                "INVALID_SOURCE_SCHEMA": 1,
+            },
+            "message": (
+                "Источник заблокирован: отсутствуют обязательные "
+                "заголовки: " + ", ".join(missing_headers)
+            ),
+        }
+
+    prepared_rows, preflight_issues = _prepare_reference_rows(
+        source_key,
+        source_rows,
+    )
+
+    warning_count = sum(
+        1 for item in preflight_issues
+        if item.get("severity") == "WARNING"
+    )
+    error_count = sum(
+        1 for item in preflight_issues
+        if item.get("severity") == "ERROR"
+    )
+
+    issue_counts: dict[str, int] = {}
+    for item in preflight_issues:
+        code = item["code"]
+        issue_counts[code] = issue_counts.get(code, 0) + 1
+
+    valid_rows = 0
+    invalid_rows = 0
+    for row in prepared_rows:
+        error = _preview_row_error(source_key, row)
+        if error:
+            invalid_rows += 1
+            issue_counts["ROW_VALIDATION"] = (
+                issue_counts.get("ROW_VALIDATION", 0) + 1
+            )
+        else:
+            valid_rows += 1
+
+    skipped = warning_count + invalid_rows
+    errors = error_count
+
+    return {
+        "source": source_key,
+        "status": (
+            "READY"
+            if errors == 0 and valid_rows > 0
+            else "WARNING"
+            if valid_rows > 0
+            else "BLOCKED"
+        ),
+        "rows_read": len(source_rows),
+        "rows_ready": valid_rows,
+        "rows_skipped": skipped,
+        "rows_error": errors,
+        "issue_counts": issue_counts,
+        "message": (
+            f"Готово к загрузке: {valid_rows} из {len(source_rows)}"
+        ),
+    }
+
+
 async def sync_reference(source_key: str) -> dict:
     if source_key not in REFERENCE_SOURCES:
         raise KeyError(source_key)
