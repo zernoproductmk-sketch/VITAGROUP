@@ -414,6 +414,29 @@ function Integrations() {
       </div>
     </section>
 
+    {(dashboard.master_issue_summary || []).length > 0 && <section className="card panel">
+      <div className="panel-head">
+        <div>
+          <h2>Проблемы справочников</h2>
+          <span>Без персональных и коммерческих значений — только тип ошибки и строки источника</span>
+        </div>
+        <IntegrationBadge status="WARNING" />
+      </div>
+      <div className="master-issue-list">
+        {(dashboard.master_issue_summary || []).map((item, index) => <div className="master-issue-row" key={`${item.source_key}-${item.issue_code}-${index}`}>
+          <div>
+            <b>{sourceNames[item.source_key] || item.source_key}</b>
+            <span>{item.issue_code}</span>
+          </div>
+          <div className="master-issue-meta">
+            <IntegrationBadge status={item.severity} />
+            <span>Количество: <b>{formatNumber(item.count)}</b></span>
+            <span>Строки: <b>{(item.rows || []).slice(0, 12).join(", ") || "—"}{(item.rows || []).length > 12 ? "…" : ""}</b></span>
+          </div>
+        </div>)}
+      </div>
+    </section>}
+
     <section className="card panel">
       <div className="panel-head"><h2>Справочники</h2><span>{masters.length} источников</span></div>
       <div className="source-list">
