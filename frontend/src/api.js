@@ -181,6 +181,15 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  adminReasons: () => strictRequest("/api/v1/admin/reasons"),
+  adminSaveDowntimeReason: (payload) => strictRequest(
+    "/api/v1/admin/reasons/downtime",
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
+  adminSaveDefectReason: (payload) => strictRequest(
+    "/api/v1/admin/reasons/defect",
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
   launchReadiness: () => request(
     "/api/v1/launch-readiness",
     {
