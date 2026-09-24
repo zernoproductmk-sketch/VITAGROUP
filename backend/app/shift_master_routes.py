@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from .auth import CurrentUser, require_roles
 from .shift_master_service import (
     close_shift,
+    complete_production_run,
     shift_close_readiness,
     shift_master_dashboard,
 )
@@ -75,6 +76,33 @@ def close(
         return close_shift(
             business_date,
             shift_code,
+            UUID(user["id"]),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/runs/{production_run_id}/complete",
+    dependencies=[
+        Depends(
+            require_roles(
+                "SHIFT_MASTER",
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
+def complete_run(
+    production_run_id: UUID,
+    user: CurrentUser,
+):
+    try:
+        return complete_production_run(
+            production_run_id,
             UUID(user["id"]),
         )
     except LookupError as exc:
