@@ -236,7 +236,7 @@ def verify_shift(
                     :shift_id,
                     'VERIFY',
                     :user_id,
-                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object('status', CAST(:old_status AS text)),
                     jsonb_build_object('status', 'VERIFIED'),
                     'Верификация смены руководителем производства'
                 )
