@@ -23,7 +23,7 @@ function Kpi({ label, value, suffix = "" }) {
   </div>;
 }
 
-function LineCard({ line, onOpenControl }) {
+function LineCard({ line, onOpenControl, canComplete, onComplete }) {
   const progress = line.planned_qty > 0
     ? Math.min(100, Math.max(0, line.output_qty / line.planned_qty * 100))
     : 0;
@@ -70,9 +70,18 @@ function LineCard({ line, onOpenControl }) {
       {line.alerts.map((alert,index)=><div key={index} className={alert.severity==="CRITICAL" ? "critical-alert" : "warning-alert"}>{alert.message}</div>)}
     </div>}
 
-    {line.reconciliation?.severity && line.reconciliation.severity !== "OK" && <button className="btn secondary master-control-btn" onClick={()=>onOpenControl(line.production_run_id)}>
-      Разобрать расхождение
-    </button>}
+    <div className="master-line-actions">
+      {line.reconciliation?.severity && line.reconciliation.severity !== "OK" && <button className="btn secondary" onClick={()=>onOpenControl(line.production_run_id)}>
+        Разобрать расхождение
+      </button>}
+      {canComplete && !["COMPLETED","VERIFIED"].includes(line.state) && <button
+        className="btn ghost"
+        disabled={Boolean(line.active_downtime)}
+        onClick={()=>onComplete(line)}
+      >
+        Завершить запуск
+      </button>}
+    </div>
   </article>;
 }
 
@@ -194,7 +203,23 @@ export default function ShiftMasterDashboard({ businessDate, shiftCode, onOpenCo
     </section>
 
     <section className="master-lines">
-      {lines.map(line => <LineCard key={line.production_run_id} line={line} onOpenControl={onOpenControl} />)}
+      {lines.map(line => <LineCard
+        key={line.production_run_id}
+        line={line}
+        onOpenControl={onOpenControl}
+        canComplete={canClose}
+        onComplete={async(currentLine)=>{
+          const ok = window.confirm(`Завершить запуск на линии ${currentLine.equipment_code} по заказу ${currentLine.order_no || "без номера"}?`);
+          if (!ok) return;
+          try {
+            await api.completeProductionRun(currentLine.production_run_id);
+            setCloseMessage(`Запуск ${currentLine.equipment_code} завершен.`);
+            await refresh();
+          } catch (error) {
+            setCloseMessage(error.message || "Не удалось завершить запуск");
+          }
+        }}
+      />)}
       {lines.length===0 && <div className="card panel"><div className="empty-state">Линий для отображения нет.</div></div>}
     </section>
   </>;
