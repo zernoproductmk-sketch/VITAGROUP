@@ -18,6 +18,7 @@ from app.workspace_service import (
     record_accounting_control,
     record_operator_output,
     record_qc_defect,
+    record_qc_no_defect,
     record_warehouse_receipt,
 )
 from app.shifts import ensure_shift
@@ -249,6 +250,99 @@ def _test_manual_norm() -> None:
     except ValueError:
         overlap_blocked = True
     assert overlap_blocked, "overlapping production norm was not blocked"
+
+
+def _test_qc_no_defect_confirmation() -> None:
+    business_date = date(2026, 9, 19)
+
+    with engine.begin() as connection:
+        admin_id = connection.execute(
+            text("SELECT id FROM users WHERE email=:email"),
+            {"email": ADMIN_EMAIL},
+        ).scalar_one()
+
+        product_id = connection.execute(
+            text(
+                """
+                INSERT INTO products (code, article, name, unit, is_active)
+                VALUES ('CI-QC-CLEAN','CI-QC-CLEAN','CI QC Clean Product','pcs',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        equipment_id = connection.execute(
+            text(
+                """
+                INSERT INTO equipment (code, name, is_active)
+                VALUES ('CI-QC-CLEAN-LINE','CI QC Clean Line',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        shift_id = ensure_shift(connection, business_date, "DAY")
+
+        run_id = connection.execute(
+            text(
+                """
+                INSERT INTO production_runs (
+                    shift_id,
+                    equipment_id,
+                    product_id,
+                    planned_qty,
+                    ideal_rate_per_hour,
+                    status
+                ) VALUES (
+                    :shift_id,
+                    :equipment_id,
+                    :product_id,
+                    100,
+                    1000,
+                    'PLANNED'
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "shift_id": shift_id,
+                "equipment_id": equipment_id,
+                "product_id": product_id,
+            },
+        ).scalar_one()
+
+        started_at = connection.execute(
+            text("SELECT started_at FROM shifts WHERE id=:id"),
+            {"id": shift_id},
+        ).scalar_one()
+
+    result = record_qc_no_defect(
+        {"id": str(admin_id)},
+        run_id,
+        started_at + timedelta(hours=1),
+        "CI clean QC check",
+        "ci-qc-clean",
+    )
+    assert result["result"] == "NO_DEFECT"
+
+    with engine.begin() as connection:
+        row = connection.execute(
+            text(
+                """
+                SELECT result, defect_quantity
+                FROM qc_inspections
+                WHERE production_run_id=:run_id
+                """
+            ),
+            {"run_id": run_id},
+        ).mappings().one()
+
+    assert row["result"] == "NO_DEFECT"
+    assert float(row["defect_quantity"]) == 0.0
 
 
 def _test_full_shift_lifecycle() -> None:
@@ -488,6 +582,7 @@ def main() -> None:
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_qc_no_defect_confirmation()
     _test_full_shift_lifecycle()
 
     client = TestClient(app)
