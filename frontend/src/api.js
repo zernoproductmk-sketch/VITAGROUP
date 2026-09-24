@@ -175,6 +175,20 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  problemCenter: (businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(
+      `/api/v1/problem-center${suffix}`,
+      {
+        context: { business_date: businessDate || "", shift_code: shiftCode || "DAY" },
+        summary: { total: 0, critical: 0, warning: 0, production: 0, integration: 0, shift: 0 },
+        items: []
+      }
+    );
+  },
   verifyShift: (businessDate, shiftCode) => {
     const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
     return strictRequest(
