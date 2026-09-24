@@ -10,6 +10,7 @@ from .workspace_service import (
     record_operator_defect,
     record_operator_output,
     record_qc_defect,
+    record_qc_no_defect,
     record_warehouse_receipt,
     start_downtime,
     stop_downtime,
@@ -53,6 +54,13 @@ class QCDefectInput(BaseModel):
     production_run_id: UUID
     quantity: float = Field(gt=0)
     reason_id: UUID | None = None
+    occurred_at: datetime | None = None
+    comment: str | None = None
+    client_event_id: UUID
+
+
+class QCNoDefectInput(BaseModel):
+    production_run_id: UUID
     occurred_at: datetime | None = None
     comment: str | None = None
     client_event_id: UUID
@@ -154,6 +162,22 @@ def qc_defect(payload: QCDefectInput, user: CurrentUser):
             user, payload.production_run_id, payload.quantity,
             payload.reason_id, payload.occurred_at,
             payload.comment, payload.client_event_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/qc/no-defect", dependencies=[Depends(require_roles("QC","ADMIN"))])
+def qc_no_defect(payload: QCNoDefectInput, user: CurrentUser):
+    try:
+        return record_qc_no_defect(
+            user,
+            payload.production_run_id,
+            payload.occurred_at,
+            payload.comment,
+            payload.client_event_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
