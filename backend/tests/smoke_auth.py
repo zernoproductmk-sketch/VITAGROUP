@@ -592,7 +592,7 @@ def main() -> None:
     health_body = health.json()
     assert health_body["status"] == "ok"
     assert health_body["database"] == "ok"
-    assert health_body["schema_version"] == "012_reconciliation_cases.sql"
+    assert health_body["schema_version"] == "013_qc_inspections.sql"
 
     unauthenticated = client.get("/api/v1/admin/users/meta")
     assert unauthenticated.status_code == 401
