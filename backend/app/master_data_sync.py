@@ -753,3 +753,74 @@ async def sync_all_references() -> dict:
         except Exception as exc:
             results[key] = {"source": key, "status": "FAILED", "message": str(exc)}
     return results
+
+
+PILOT_SOURCE_ORDER = ("equipment", "employees", "products", "tariffs")
+
+
+async def pilot_sync_references() -> dict:
+    """Safely run the first pilot master-data load in dependency-aware order.
+
+    Every source is previewed before write. Blocked sources are skipped.
+    Production norms are intentionally excluded until their Coverse schema
+    contains stable identifying keys.
+    """
+    previews: dict[str, dict] = {}
+    results: dict[str, dict] = {}
+
+    for key in PILOT_SOURCE_ORDER:
+        try:
+            preview = await preview_reference(key)
+            previews[key] = preview
+
+            if preview.get("status") == "BLOCKED":
+                results[key] = {
+                    "source": key,
+                    "status": "SKIPPED",
+                    "message": preview.get("message") or "Источник заблокирован preview-проверкой",
+                }
+                continue
+
+            results[key] = await sync_reference(key)
+        except Exception as exc:
+            results[key] = {
+                "source": key,
+                "status": "FAILED",
+                "message": str(exc),
+            }
+
+    results["production_norms"] = {
+        "source": "production_norms",
+        "status": "SKIPPED",
+        "message": (
+            "Нормы Coverse не загружаются в пилоте до исправления схемы; "
+            "используется ERP-норма или ручной резервный норматив."
+        ),
+    }
+
+    failed = sum(1 for item in results.values() if item.get("status") == "FAILED")
+    skipped = sum(1 for item in results.values() if item.get("status") == "SKIPPED")
+    completed_with_errors = sum(
+        1 for item in results.values()
+        if item.get("status") == "COMPLETED_WITH_ERRORS"
+    )
+
+    overall_status = (
+        "FAILED"
+        if failed
+        else "COMPLETED_WITH_WARNINGS"
+        if skipped or completed_with_errors
+        else "COMPLETED"
+    )
+
+    return {
+        "status": overall_status,
+        "message": (
+            "Пилотная загрузка справочников завершена. "
+            f"Ошибок: {failed}; пропущено источников: {skipped}; "
+            f"источников с ошибками строк: {completed_with_errors}."
+        ),
+        "order": list(PILOT_SOURCE_ORDER),
+        "previews": previews,
+        "results": results,
+    }
