@@ -315,6 +315,32 @@ function Integrations() {
     </div>
 
     <section className="card panel">
+      <div className="panel-head">
+        <div>
+          <h2>Пилотная загрузка справочников</h2>
+          <span>Фактическое наполнение PostgreSQL после синхронизации</span>
+        </div>
+        <IntegrationBadge status={dashboard.pilot_master_readiness?.ready ? "READY" : "BLOCKED"} />
+      </div>
+      <div className="pilot-master-grid">
+        {Object.entries(dashboard.pilot_master_readiness?.sources || {}).map(([key,item]) => <article className="pilot-master-card" key={key}>
+          <div className="pilot-master-head">
+            <b>{sourceNames[key] || key}</b>
+            <IntegrationBadge status={item.status} />
+          </div>
+          <strong>{formatNumber(item.count)}</strong>
+          <p>{item.message}</p>
+          <button className="btn ghost" disabled={!!busy} onClick={() => run(sourceNames[key] || key, () => api.syncMasterSource(key))}>
+            Синхронизировать
+          </button>
+        </article>)}
+      </div>
+      <div className="admin-note">
+        Нормы выпуска могут быть заполнены вручную в разделе «Нормативы скорости», если исходный справочник Coverse остается некорректным.
+      </div>
+    </section>
+
+    <section className="card panel">
       <div className="panel-head"><h2>Справочники</h2><span>{masters.length} источников</span></div>
       <div className="source-list">
         {masters.map(([key, item]) => <div className="source-row" key={key}>
