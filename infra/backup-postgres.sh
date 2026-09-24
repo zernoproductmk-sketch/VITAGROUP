@@ -9,10 +9,22 @@ run_backup() {
   temp="${target}.tmp"
 
   echo "[backup] starting ${timestamp}"
-  pg_dump     --format=custom     --compress=9     --no-owner     --no-acl     --file="${temp}"
+  pg_dump \
+    --format=custom \
+    --compress=9 \
+    --no-owner \
+    --no-acl \
+    --file="${temp}"
+
+  echo "[backup] verifying dump"
+  if ! pg_restore --list "${temp}" >/dev/null 2>&1; then
+    rm -f "${temp}"
+    echo "[backup] verification failed; invalid dump removed" >&2
+    return 1
+  fi
 
   mv "${temp}" "${target}"
-  echo "[backup] created ${target}"
+  echo "[backup] created and verified ${target}"
 
   find /backups     -type f     -name 'vitagroup_*.dump'     -mtime "+${RETENTION_DAYS}"     -delete
 
