@@ -2,6 +2,7 @@
 set -eu
 
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+BACKUP_ONCE="${BACKUP_ONCE:-false}"
 
 run_backup() {
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -33,5 +34,8 @@ run_backup() {
 
 while true; do
   run_backup
+  if [ "$BACKUP_ONCE" = "true" ]; then
+    break
+  fi
   sleep 86400
 done
