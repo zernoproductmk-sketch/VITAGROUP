@@ -317,7 +317,7 @@ def shift_master_dashboard(
     )
 
     return {
-        "shift": summary["shift"],
+        "shift": {**summary["shift"], "status": summary["status"]},
         "kpi": summary["kpi"],
         "production": summary["production"],
         "time": summary["time"],
@@ -508,4 +508,131 @@ def close_shift(
         "status": "CLOSED",
         "shift_id": shift_id,
         "already_closed": False,
+    }
+
+
+def complete_production_run(
+    production_run_id: UUID,
+    user_id: UUID,
+) -> dict:
+    now = datetime.now(ZoneInfo(settings.business_timezone))
+
+    with engine.begin() as connection:
+        run = connection.execute(
+            text(
+                """
+                SELECT
+                    pr.id,
+                    pr.status,
+                    pr.actual_start_at,
+                    pr.actual_end_at,
+                    pr.shift_id,
+                    pr.equipment_id
+                FROM production_runs pr
+                WHERE pr.id = :run_id
+                FOR UPDATE
+                """
+            ),
+            {"run_id": production_run_id},
+        ).mappings().first()
+
+        if not run:
+            raise LookupError("Производственный запуск не найден")
+
+        if run["status"] in {"COMPLETED", "VERIFIED"}:
+            return {
+                "status": run["status"],
+                "production_run_id": str(production_run_id),
+                "already_completed": True,
+            }
+
+        if run["status"] == "CANCELLED":
+            raise ValueError("Отмененный запуск нельзя завершить")
+
+        active_downtime = connection.execute(
+            text(
+                """
+                SELECT 1
+                FROM downtime_events
+                WHERE shift_id = :shift_id
+                  AND equipment_id = :equipment_id
+                  AND ended_at IS NULL
+                  AND (
+                        production_run_id = :run_id
+                        OR production_run_id IS NULL
+                      )
+                LIMIT 1
+                """
+            ),
+            {
+                "shift_id": run["shift_id"],
+                "equipment_id": run["equipment_id"],
+                "run_id": production_run_id,
+            },
+        ).scalar_one_or_none()
+
+        if active_downtime:
+            raise ValueError(
+                "Сначала завершите активный простой на линии"
+            )
+
+        actual_start_at = run["actual_start_at"] or now
+        actual_end_at = max(now, actual_start_at)
+
+        connection.execute(
+            text(
+                """
+                UPDATE production_runs
+                SET status = 'COMPLETED',
+                    actual_start_at = COALESCE(actual_start_at, :actual_start_at),
+                    actual_end_at = :actual_end_at,
+                    updated_at = now()
+                WHERE id = :run_id
+                """
+            ),
+            {
+                "run_id": production_run_id,
+                "actual_start_at": actual_start_at,
+                "actual_end_at": actual_end_at,
+            },
+        )
+
+        connection.execute(
+            text(
+                """
+                INSERT INTO audit_log (
+                    table_name,
+                    record_id,
+                    action,
+                    changed_by_user_id,
+                    old_data,
+                    new_data,
+                    reason
+                ) VALUES (
+                    'production_runs',
+                    :run_id,
+                    'UPDATE',
+                    :user_id,
+                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object(
+                        'status', 'COMPLETED',
+                        'actual_end_at', :actual_end_at
+                    ),
+                    'Завершение производственного запуска сменным мастером'
+                )
+                """
+            ),
+            {
+                "run_id": production_run_id,
+                "user_id": user_id,
+                "old_status": run["status"],
+                "actual_end_at": actual_end_at,
+            },
+        )
+
+    return {
+        "status": "COMPLETED",
+        "production_run_id": str(production_run_id),
+        "already_completed": False,
+        "actual_end_at": actual_end_at.isoformat(),
     }
