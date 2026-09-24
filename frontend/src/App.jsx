@@ -32,6 +32,21 @@ const menu = [
   { key: "users", label: "Пользователи", roles: ["ADMIN"] }
 ];
 
+function defaultSectionForRoles(roles = []) {
+  const priority = [
+    ["ADMIN", "management"],
+    ["MANAGEMENT", "management"],
+    ["PRODUCTION_MANAGER", "production-manager"],
+    ["SHIFT_MASTER", "shift-master"],
+    ["ECONOMIST", "payroll"],
+    ["ACCOUNTANT_PRODUCTION", "accountant-workspace"],
+    ["WAREHOUSE", "warehouse-workspace"],
+    ["QC", "qc-workspace"],
+    ["OPERATOR", "operator-workspace"]
+  ];
+  return priority.find(([role]) => roles.includes(role))?.[1] || "dashboard";
+}
+
 const sourceNames = {
   downtime: "Простои",
   production_output: "Выпуск производства",
@@ -434,16 +449,19 @@ export default function App() {
       allowDemo={allowDemo}
       onLogin={current => {
         setUser(current);
+        setSection(defaultSectionForRoles(current.roles || []));
         setDemoMode(false);
       }}
       onDemo={() => {
-        setUser({
+        const demoUser = {
           id: "demo",
           email: "demo@vitagroup.local",
           full_name: "Демонстрационный пользователь",
           roles: ["ADMIN"],
           must_change_password: false
-        });
+        };
+        setUser(demoUser);
+        setSection(defaultSectionForRoles(demoUser.roles));
         setDemoMode(true);
       }}
     />;
