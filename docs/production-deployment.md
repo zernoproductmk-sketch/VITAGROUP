@@ -66,6 +66,22 @@ confirm that repository visibility matches the company's security policy.
 Real credentials and production exports must never be committed regardless
 of repository visibility.
 
+## GitHub Actions production deploy
+
+A manual workflow is available at `.github/workflows/deploy-production.yml`.
+
+Create a protected GitHub Environment named `production` and add these secrets:
+
+- `PROD_HOST` — production VPS public IPv4 or hostname;
+- `PROD_USER` — SSH user;
+- `PROD_SSH_KEY` — private deployment key;
+- `PROD_PATH` — repository path on the server, for example `/opt/vitagroup`;
+- `PROD_PORT` — optional SSH port; defaults to 22.
+
+The real application `.env` remains only on the server. The workflow never stores PostgreSQL passwords, JWT secrets, Coverse tokens or other application credentials in the repository.
+
+Before each non-first deployment, the server script creates and verifies a one-shot PostgreSQL dump, then builds images, applies migrations, restarts services and executes the public post-deploy checks.
+
 ## First start
 
 From the repository root:
