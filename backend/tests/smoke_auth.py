@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -9,6 +10,7 @@ from sqlalchemy import text
 
 from app.auth import hash_password
 from app.database import engine
+from app.integrations.coverse import CoverseClient
 from app.main import app
 from app.norm_admin_service import save_manual_norm
 from app.production_manager_service import verify_shift
@@ -250,6 +252,75 @@ def _test_manual_norm() -> None:
     except ValueError:
         overlap_blocked = True
     assert overlap_blocked, "overlapping production norm was not blocked"
+
+
+def _test_coverse_pagination() -> None:
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    class FakeHttpClient:
+        def __init__(self):
+            self.calls = []
+
+        async def get(self, endpoint, params):
+            self.calls.append(dict(params))
+            offset = int(params.get("offset", 0))
+            if offset == 0:
+                return FakeResponse({
+                    "values": {
+                        "cells": [
+                            [{"value": "H1"}],
+                            [{"value": "R1"}],
+                            [{"value": "R2"}],
+                        ],
+                        "pagination": {
+                            "hasMore": True,
+                            "nextOffset": 3,
+                            "returned": 3,
+                        },
+                    }
+                })
+            return FakeResponse({
+                "values": {
+                    "cells": [
+                        [{"value": "R3"}],
+                        [{"value": "R4"}],
+                    ],
+                    "pagination": {
+                        "hasMore": False,
+                        "nextOffset": None,
+                        "returned": 2,
+                    },
+                }
+            })
+
+        async def aclose(self):
+            return None
+
+    client = object.__new__(CoverseClient)
+    client.client = FakeHttpClient()
+
+    rows = asyncio.run(
+        client.read_range(
+            "doc",
+            "Sheet",
+            "A:A",
+            page_size=3,
+        )
+    )
+
+    assert len(rows) == 5
+    assert rows[0][0]["value"] == "H1"
+    assert rows[-1][0]["value"] == "R4"
+    assert len(client.client.calls) == 2
+    assert client.client.calls[1]["offset"] == 3
 
 
 def _test_qc_no_defect_confirmation() -> None:
@@ -582,6 +653,7 @@ def main() -> None:
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_coverse_pagination()
     _test_qc_no_defect_confirmation()
     _test_full_shift_lifecycle()
 
