@@ -31,5 +31,30 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
+    @model_validator(mode="after")
+    def validate_production_settings(self):
+        if self.environment.lower() != "production":
+            return self
+
+        secret = self.auth_jwt_secret.strip()
+        blocked = {
+            "",
+            "change-this-before-deploy",
+            "replace-with-at-least-64-random-characters",
+        }
+        if secret in blocked or len(secret) < 48:
+            raise ValueError(
+                "AUTH_JWT_SECRET must be a unique production secret "
+                "with at least 48 characters"
+            )
+
+        if "https://corpvitagroup.ru" not in self.cors_origin_list:
+            raise ValueError(
+                "Production CORS_ORIGINS must include "
+                "https://corpvitagroup.ru"
+            )
+
+        return self
+
 
 settings = Settings()
