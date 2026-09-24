@@ -400,7 +400,10 @@ export default function App() {
   const allowDemo = typeof window !== "undefined" && window.location.hostname !== "corpvitagroup.ru";
 
   useEffect(() => {
-    api.authMe().then(current => setUser(current));
+    api.authMe().then(current => {
+      setUser(current);
+      if (current) setSection(defaultSectionForRoles(current.roles || []));
+    });
     const expired = () => {
       setUser(null);
       setDemoMode(false);
