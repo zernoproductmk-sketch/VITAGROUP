@@ -273,6 +273,7 @@ function Integrations() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [mappingRow, setMappingRow] = useState(null);
+  const [masterPreview, setMasterPreview] = useState({});
 
   const refresh = async () => {
     const [d, u] = await Promise.all([api.integrationDashboard(), api.unresolved()]);
@@ -289,6 +290,19 @@ function Integrations() {
     setNotice(result?.message || `Операция «${key}» выполнена`);
     await refresh();
     setBusy("");
+  };
+
+  const previewMaster = async (key) => {
+    setBusy(`preview:${key}`);
+    setNotice("");
+    try {
+      const result = await api.previewMasterSource(key);
+      setMasterPreview(current => ({ ...current, [key]: result }));
+    } catch (error) {
+      setNotice(error.message || "Не удалось проверить источник");
+    } finally {
+      setBusy("");
+    }
   };
 
   if (!dashboard) return <div className="card panel">Загрузка состояния интеграций…</div>;
@@ -323,17 +337,31 @@ function Integrations() {
         <IntegrationBadge status={dashboard.pilot_master_readiness?.ready ? "READY" : "BLOCKED"} />
       </div>
       <div className="pilot-master-grid">
-        {Object.entries(dashboard.pilot_master_readiness?.sources || {}).map(([key,item]) => <article className="pilot-master-card" key={key}>
-          <div className="pilot-master-head">
-            <b>{sourceNames[key] || key}</b>
-            <IntegrationBadge status={item.status} />
-          </div>
-          <strong>{formatNumber(item.count)}</strong>
-          <p>{item.message}</p>
-          <button className="btn ghost" disabled={!!busy} onClick={() => run(sourceNames[key] || key, () => api.syncMasterSource(key))}>
-            Синхронизировать
-          </button>
-        </article>)}
+        {Object.entries(dashboard.pilot_master_readiness?.sources || {}).map(([key,item]) => {
+          const preview = masterPreview[key];
+          return <article className="pilot-master-card" key={key}>
+            <div className="pilot-master-head">
+              <b>{sourceNames[key] || key}</b>
+              <IntegrationBadge status={preview?.status || item.status} />
+            </div>
+            <strong>{formatNumber(item.count)}</strong>
+            <p>{preview?.message || item.message}</p>
+            {preview && <div className="pilot-preview-stats">
+              <span>Прочитано <b>{formatNumber(preview.rows_read)}</b></span>
+              <span>Готово <b>{formatNumber(preview.rows_ready)}</b></span>
+              <span>Пропущено <b>{formatNumber(preview.rows_skipped)}</b></span>
+              <span>Ошибок <b>{formatNumber(preview.rows_error)}</b></span>
+            </div>}
+            <div className="pilot-master-actions">
+              <button className="btn ghost" disabled={!!busy} onClick={() => previewMaster(key)}>
+                Проверить источник
+              </button>
+              <button className="btn secondary" disabled={!!busy || preview?.status === "BLOCKED"} onClick={() => run(sourceNames[key] || key, () => api.syncMasterSource(key))}>
+                Синхронизировать
+              </button>
+            </div>
+          </article>;
+        })}
       </div>
       <div className="admin-note">
         Нормы выпуска могут быть заполнены вручную в разделе «Нормативы скорости», если исходный справочник Coverse остается некорректным.
