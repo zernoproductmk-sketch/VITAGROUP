@@ -75,7 +75,7 @@ Open:
 
 `https://corpvitagroup.ru/health`
 
-Expected status: `ok`, database `ok`, and schema version `012_reconciliation_cases.sql` or a later migration.
+Expected status: `ok`, database `ok`, and schema version `013_qc_inspections.sql` or a later migration.
 
 ## First administrator
 
