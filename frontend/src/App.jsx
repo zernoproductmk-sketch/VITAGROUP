@@ -1,3 +1,4 @@
+import ReconciliationControl from "./ReconciliationControl";
 import RoleWorkspace from "./RoleWorkspace";
 import LoginPage from "./LoginPage";
 import UserAdminPage from "./UserAdminPage";
@@ -19,6 +20,7 @@ const menu = [
   { key: "downtime", label: "Простои", roles: ["OPERATOR","SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "quality", label: "ГП и брак", roles: ["QC","SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "reconciliation", label: "Сверка", roles: ["QC","WAREHOUSE","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "shift-control", label: "Контроль смены", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","ACCOUNTANT_PRODUCTION","ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "payroll", label: "Сдельная ЗП", roles: ["ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "integrations", label: "Интеграции", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"] },
   { key: "users", label: "Пользователи", roles: ["ADMIN"] }
@@ -449,6 +451,7 @@ export default function App() {
 
   const title = visibleMenu.find(item => item.key === section)?.label ?? "Обзор";
   const canEditPayroll = roles.includes("ECONOMIST") || roles.includes("ADMIN");
+  const canEditReconciliation = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ACCOUNTANT_PRODUCTION") || roles.includes("ADMIN");
 
   return <div className="app">
     <aside>
@@ -483,6 +486,7 @@ export default function App() {
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
+        {section === "shift-control" && <ReconciliationControl businessDate={data?.shift?.business_date} shiftCode={shift} canEdit={canEditReconciliation} />}
         {section === "payroll" && <PayrollPage readOnly={!canEditPayroll} />}
         {section === "integrations" && <Integrations />}
         {section === "users" && <UserAdminPage />}
