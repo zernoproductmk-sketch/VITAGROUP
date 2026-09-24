@@ -82,9 +82,87 @@ def integration_dashboard() -> dict:
             )
         ).scalar_one()
 
+        master_inventory = connection.execute(
+            text(
+                """
+                SELECT
+                    (SELECT count(*) FROM employees WHERE is_active=true) AS employees,
+                    (SELECT count(*) FROM equipment WHERE is_active=true) AS equipment,
+                    (SELECT count(*) FROM products WHERE is_active=true) AS products,
+                    (
+                        SELECT count(*)
+                        FROM payroll_rate_rules
+                        WHERE is_active=true
+                          AND valid_from <= current_date
+                          AND (valid_to IS NULL OR valid_to >= current_date)
+                    ) AS tariffs,
+                    (
+                        SELECT count(*)
+                        FROM production_norms
+                        WHERE valid_from <= current_date
+                          AND (valid_to IS NULL OR valid_to >= current_date)
+                    ) AS production_norms,
+                    (
+                        SELECT count(*)
+                        FROM product_payroll_attributes
+                        WHERE confirmed=true
+                    ) AS payroll_product_attributes
+                """
+            )
+        ).mappings().one()
+
+    inventory = {
+        key: int(value or 0)
+        for key, value in dict(master_inventory).items()
+    }
+
+    pilot_sources = {}
+    for key in ("employees", "equipment", "products", "tariffs", "production_norms"):
+        log = master_logs.get(key)
+        count = inventory.get(key, 0)
+        if key == "production_norms" and count > 0:
+            status = "READY"
+            message = (
+                f"Действующих нормативов в PostgreSQL: {count}. "
+                "Допускаются ручные резервные нормы."
+            )
+        elif log and log.get("status") in {"COMPLETED", "COMPLETED_WITH_ERRORS"} and count > 0:
+            status = "READY" if not log.get("rows_error") else "WARNING"
+            message = (
+                f"В базе: {count}; применено при последней синхронизации: "
+                f"{int(log.get('rows_applied') or 0)}"
+            )
+        elif log and log.get("status") == "BLOCKED":
+            status = "BLOCKED"
+            message = log.get("message") or "Источник заблокирован проверкой схемы"
+        elif count > 0:
+            status = "WARNING"
+            message = f"В базе: {count}; успешная синхронизация источника еще не зафиксирована"
+        else:
+            status = "BLOCKED"
+            message = "В базе пока нет активных записей"
+
+        pilot_sources[key] = {
+            "status": status,
+            "count": count,
+            "message": message,
+            "last_sync": dict(log) if log else None,
+        }
+
+    pilot_blockers = sum(
+        1 for item in pilot_sources.values()
+        if item["status"] == "BLOCKED"
+    )
+
     return {
         "event_sources": event_counts,
         "master_sources": master_logs,
+        "master_inventory": inventory,
+        "pilot_master_readiness": {
+            "ready": pilot_blockers == 0,
+            "blockers": pilot_blockers,
+            "sources": pilot_sources,
+        },
         "totals": {
             "unresolved": unresolved_count,
             "open_resolution_issues": open_issues,
