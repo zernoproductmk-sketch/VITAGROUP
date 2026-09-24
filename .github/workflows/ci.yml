@@ -48,6 +48,8 @@ jobs:
         run: python -m app.migrate --path ../database/migrations
       - name: Import application
         run: python -c "import app.main; print('backend import ok')"
+      - name: Run application smoke test
+        run: python tests/smoke_auth.py
       - name: Verify health endpoint dependencies
         run: |
           python - <<'PY'
