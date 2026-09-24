@@ -454,6 +454,7 @@ export default function App() {
   }, [user?.id, data?.shift?.business_date, shift, roles.join("|")]);
 
   const logout = () => {
+    api.setDemoMode(false);
     api.logout();
     setUser(null);
     setDemoMode(false);
@@ -466,6 +467,7 @@ export default function App() {
     return <LoginPage
       allowDemo={allowDemo}
       onLogin={current => {
+        api.setDemoMode(false);
         setUser(current);
         setSection(defaultSectionForRoles(current.roles || []));
         setDemoMode(false);
@@ -478,6 +480,7 @@ export default function App() {
           roles: ["ADMIN"],
           must_change_password: false
         };
+        api.setDemoMode(true);
         setUser(demoUser);
         setSection(defaultSectionForRoles(demoUser.roles));
         setDemoMode(true);
