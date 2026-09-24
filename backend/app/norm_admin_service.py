@@ -303,7 +303,10 @@ def save_manual_norm(
                       AND pr.ideal_rate_per_hour IS NULL
                       AND pr.status IN ('PLANNED','RUNNING','PAUSED')
                       AND s.business_date >= :valid_from
-                      AND (:valid_to IS NULL OR s.business_date <= :valid_to)
+                      AND (
+                            CAST(:valid_to AS date) IS NULL
+                            OR s.business_date <= CAST(:valid_to AS date)
+                          )
                     """
                 ),
                 {
