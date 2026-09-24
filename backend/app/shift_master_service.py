@@ -491,7 +491,7 @@ def close_shift(
                     :shift_id,
                     'UPDATE',
                     :user_id,
-                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object('status', CAST(:old_status AS text)),
                     jsonb_build_object('status', 'CLOSED'),
                     'Закрытие смены сменным мастером / руководителем производства'
                 )
@@ -613,10 +613,10 @@ def complete_production_run(
                     :run_id,
                     'UPDATE',
                     :user_id,
-                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object('status', CAST(:old_status AS text)),
                     jsonb_build_object(
                         'status', 'COMPLETED',
-                        'actual_end_at', :actual_end_at
+                        'actual_end_at', CAST(:actual_end_at AS timestamptz)
                     ),
                     'Завершение производственного запуска сменным мастером'
                 )
