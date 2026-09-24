@@ -26,7 +26,17 @@ def day(business_date: date):
     return production_manager_day(business_date)
 
 
-@router.post("/verify-shift")
+@router.post(
+    "/verify-shift",
+    dependencies=[
+        Depends(
+            require_roles(
+                "PRODUCTION_MANAGER",
+                "ADMIN",
+            )
+        )
+    ],
+)
 def verify(
     business_date: date,
     shift_code: str,
