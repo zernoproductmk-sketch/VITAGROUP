@@ -47,6 +47,25 @@ Real values that must exist only on the server include:
 - YANDEX_PLAN_PUBLIC_URL;
 - any future third-party API credentials.
 
+Restrict the environment file:
+
+`chmod 600 .env`
+
+Before the first build, run the server preflight from the repository root:
+
+`sh infra/server-preflight.sh .env`
+
+It verifies Docker/Compose availability, production environment settings,
+non-default secrets, that PostgreSQL is not published by Compose, basic
+RAM/disk capacity, DNS resolution and whether ports 80/443 are already in
+use.
+
+The GitHub repository currently contains application source only. Before
+placing any organization-specific operational material in the repository,
+confirm that repository visibility matches the company's security policy.
+Real credentials and production exports must never be committed regardless
+of repository visibility.
+
 ## First start
 
 From the repository root:
