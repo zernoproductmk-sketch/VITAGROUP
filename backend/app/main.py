@@ -16,6 +16,7 @@ from .reconciliation_routes import router as reconciliation_control_router
 from .shift_master_routes import router as shift_master_router
 from .production_manager_routes import router as production_manager_router
 from .management_routes import router as management_router
+from .problem_center_routes import router as problem_center_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -46,6 +47,7 @@ app.include_router(reconciliation_control_router)
 app.include_router(shift_master_router)
 app.include_router(production_manager_router)
 app.include_router(management_router)
+app.include_router(problem_center_router)
 
 
 @app.get("/health")
