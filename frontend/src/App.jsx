@@ -454,6 +454,7 @@ export default function App() {
   const title = visibleMenu.find(item => item.key === section)?.label ?? "Обзор";
   const canEditPayroll = roles.includes("ECONOMIST") || roles.includes("ADMIN");
   const canEditReconciliation = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ACCOUNTANT_PRODUCTION") || roles.includes("ADMIN");
+  const canCloseShift = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ADMIN");
 
   return <div className="app">
     <aside>
@@ -478,7 +479,7 @@ export default function App() {
       </header>
       <div className="content">
         {section === "dashboard" && <Dashboard data={data} />}
-        {section === "shift-master" && <ShiftMasterDashboard businessDate={data?.shift?.business_date} shiftCode={shift} onOpenControl={() => setSection("shift-control")} />}
+        {section === "shift-master" && <ShiftMasterDashboard businessDate={data?.shift?.business_date} shiftCode={shift} canClose={canCloseShift} onOpenControl={() => setSection("shift-control")} />}
         {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "warehouse-workspace" && <RoleWorkspace kind="warehouse" businessDate={data?.shift?.business_date} shiftCode={shift} />}
