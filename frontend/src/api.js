@@ -175,6 +175,10 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  completeProductionRun: (runId) => strictRequest(
+    `/api/v1/shift-master/runs/${runId}/complete`,
+    { method: "POST" }
+  ),
   shiftCloseReadiness: (businessDate, shiftCode) => {
     const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
     return request(
