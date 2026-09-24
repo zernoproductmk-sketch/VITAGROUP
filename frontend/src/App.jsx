@@ -1,3 +1,4 @@
+import ManagementDashboard from "./ManagementDashboard";
 import ProductionManagerDashboard from "./ProductionManagerDashboard";
 import ShiftMasterDashboard from "./ShiftMasterDashboard";
 import ReconciliationControl from "./ReconciliationControl";
@@ -14,6 +15,7 @@ const menu = [
   { key: "dashboard", label: "Обзор", roles: ["OPERATOR","QC","WAREHOUSE","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "shift-master", label: "Кабинет мастера", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
   { key: "production-manager", label: "Руководитель производства", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] },
+  { key: "management", label: "Руководство", roles: ["MANAGEMENT","ADMIN"] },
   { key: "operator-workspace", label: "Мое задание", roles: ["OPERATOR","ADMIN"] },
   { key: "qc-workspace", label: "Контроль качества", roles: ["QC","ADMIN"] },
   { key: "warehouse-workspace", label: "Приемка продукции", roles: ["WAREHOUSE","ADMIN"] },
@@ -486,6 +488,11 @@ export default function App() {
           businessDate={data?.shift?.business_date}
           onOpenMaster={(shiftCode)=>{setShift(shiftCode);setSection("shift-master");}}
           onOpenControl={(shiftCode)=>{setShift(shiftCode);setSection("shift-control");}}
+        />}
+        {section === "management" && <ManagementDashboard
+          businessDate={data?.shift?.business_date}
+          onOpenProductionManager={()=>setSection("production-manager")}
+          onOpenControl={()=>setSection("shift-control")}
         />}
         {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={data?.shift?.business_date} shiftCode={shift} />}
