@@ -1,3 +1,4 @@
+from ipaddress import ip_address
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
@@ -14,6 +15,16 @@ from .config import settings
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
+def _safe_ip(value: str | None) -> str | None:
+    if not value:
+        return None
+    candidate = value.strip()
+    try:
+        return str(ip_address(candidate))
+    except ValueError:
+        return None
+
+
 class LoginInput(BaseModel):
     email: EmailStr
     password: str
@@ -27,15 +38,16 @@ class PasswordChangeInput(BaseModel):
 @router.post("/login")
 def login(payload: LoginInput, request: Request):
     forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = (
+    raw_ip = (
         forwarded_for.split(",")[0].strip()
         if forwarded_for
         else (request.client.host if request.client else None)
     )
+    client_ip = _safe_ip(raw_ip)
     user = authenticate(
         payload.email,
         payload.password,
-        ip_address=ip_address,
+        ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
     )
     token = create_access_token(
