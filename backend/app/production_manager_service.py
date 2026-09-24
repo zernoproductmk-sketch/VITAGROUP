@@ -124,3 +124,133 @@ def production_manager_day(
             key=lambda row: row["code"],
         ),
     }
+
+
+from uuid import UUID
+from sqlalchemy import text
+from .database import engine
+
+
+def verify_shift(
+    business_date: date,
+    shift_code: str,
+    user_id: UUID,
+) -> dict:
+    block = _shift_block(business_date, shift_code)
+    shift_id = block["shift"].get("id")
+    if not shift_id:
+        raise LookupError("Смена не найдена")
+
+    if block["status"] not in {"CLOSED", "VERIFIED"}:
+        raise ValueError(
+            "Сначала смена должна быть закрыта сменным мастером"
+        )
+
+    if block["reconciliation"]["open_cases"] > 0:
+        raise ValueError(
+            "Нельзя подтвердить смену: есть незакрытые расхождения"
+        )
+
+    if block["data_quality"]["missing_norm_runs"] > 0:
+        raise ValueError(
+            "Нельзя подтвердить смену: есть запуски без норматива скорости"
+        )
+
+    with engine.begin() as connection:
+        shift = connection.execute(
+            text(
+                """
+                SELECT id, status
+                FROM shifts
+                WHERE id = :shift_id
+                FOR UPDATE
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        ).mappings().first()
+
+        if not shift:
+            raise LookupError("Смена не найдена")
+
+        if shift["status"] == "VERIFIED":
+            return {
+                "status": "VERIFIED",
+                "shift_id": shift_id,
+                "already_verified": True,
+            }
+
+        unfinished = connection.execute(
+            text(
+                """
+                SELECT count(*)
+                FROM production_runs
+                WHERE shift_id = :shift_id
+                  AND status NOT IN ('COMPLETED','VERIFIED','CANCELLED')
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        ).scalar_one()
+
+        if unfinished:
+            raise ValueError(
+                f"Есть незавершенные производственные запуски: {unfinished}"
+            )
+
+        connection.execute(
+            text(
+                """
+                UPDATE production_runs
+                SET status = 'VERIFIED',
+                    updated_at = now()
+                WHERE shift_id = :shift_id
+                  AND status = 'COMPLETED'
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        )
+
+        connection.execute(
+            text(
+                """
+                UPDATE shifts
+                SET status = 'VERIFIED'
+                WHERE id = :shift_id
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        )
+
+        connection.execute(
+            text(
+                """
+                INSERT INTO audit_log (
+                    table_name,
+                    record_id,
+                    action,
+                    changed_by_user_id,
+                    old_data,
+                    new_data,
+                    reason
+                ) VALUES (
+                    'shifts',
+                    :shift_id,
+                    'VERIFY',
+                    :user_id,
+                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object('status', 'VERIFIED'),
+                    'Верификация смены руководителем производства'
+                )
+                """
+            ),
+            {
+                "shift_id": UUID(shift_id),
+                "user_id": user_id,
+                "old_status": shift["status"],
+            },
+        )
+
+    return {
+        "status": "VERIFIED",
+        "shift_id": shift_id,
+        "already_verified": False,
+    }
