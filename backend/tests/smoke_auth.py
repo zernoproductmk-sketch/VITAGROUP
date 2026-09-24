@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -112,18 +113,25 @@ def _test_shift_rules() -> None:
     by_code = {row["code"]: row for row in rows}
     assert set(by_code) == {"DAY", "NIGHT"}
 
+    tz = ZoneInfo("Europe/Moscow")
+
     day = by_code["DAY"]
+    day_start = day["started_at"].astimezone(tz)
+    day_end = day["ended_at"].astimezone(tz)
     assert day["business_date"] == business_date
-    assert day["started_at"].timetz().replace(tzinfo=None) == time(9, 0)
-    assert day["ended_at"].date() == business_date
-    assert day["ended_at"].timetz().replace(tzinfo=None) == time(21, 0)
+    assert day_start.date() == business_date
+    assert day_start.timetz().replace(tzinfo=None) == time(9, 0)
+    assert day_end.date() == business_date
+    assert day_end.timetz().replace(tzinfo=None) == time(21, 0)
 
     night = by_code["NIGHT"]
+    night_start = night["started_at"].astimezone(tz)
+    night_end = night["ended_at"].astimezone(tz)
     assert night["business_date"] == business_date
-    assert night["started_at"].date() == business_date
-    assert night["started_at"].timetz().replace(tzinfo=None) == time(21, 0)
-    assert night["ended_at"].date() == date(2026, 9, 25)
-    assert night["ended_at"].timetz().replace(tzinfo=None) == time(9, 0)
+    assert night_start.date() == business_date
+    assert night_start.timetz().replace(tzinfo=None) == time(21, 0)
+    assert night_end.date() == date(2026, 9, 25)
+    assert night_end.timetz().replace(tzinfo=None) == time(9, 0)
 
 
 def main() -> None:
