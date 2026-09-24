@@ -335,6 +335,86 @@ def _upsert_tariff(connection, row):
     )
 
 
+def _prepare_reference_rows(source_key: str, rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """
+    Pre-flight source rows before writes.
+
+    Returns:
+        rows_to_apply,
+        issues: [{row_number, code, severity, message, raw_data}]
+    """
+    if source_key != "employees":
+        return rows, []
+
+    grouped: dict[str, list[dict]] = {}
+    passthrough: list[dict] = []
+
+    for row in rows:
+        key = normalized_personnel_number(row.get("personnel_number"))
+        if not key:
+            passthrough.append(row)
+            continue
+        grouped.setdefault(key, []).append(row)
+
+    prepared = list(passthrough)
+    issues: list[dict] = []
+
+    for personnel_number, group in grouped.items():
+        if len(group) == 1:
+            prepared.append(group[0])
+            continue
+
+        fingerprints = {
+            (
+                str(item.get("full_name") or "").strip().casefold(),
+                str(item.get("position_name") or "").strip().casefold(),
+                str(item.get("department_name") or "").strip().casefold(),
+            )
+            for item in group
+        }
+
+        if len(fingerprints) == 1:
+            prepared.append(group[0])
+            for duplicate in group[1:]:
+                issues.append(
+                    {
+                        "row_number": duplicate.get("source_row"),
+                        "code": "DUPLICATE_SOURCE_ROW",
+                        "severity": "WARNING",
+                        "message": (
+                            "Точный дубль сотрудника по табельному номеру; "
+                            "строка не загружена повторно"
+                        ),
+                        "raw_data": {
+                            "personnel_number": personnel_number,
+                            "source_row": duplicate.get("source_row"),
+                        },
+                    }
+                )
+            continue
+
+        for conflicting in group:
+            issues.append(
+                {
+                    "row_number": conflicting.get("source_row"),
+                    "code": "DUPLICATE_PERSONNEL_CONFLICT",
+                    "severity": "ERROR",
+                    "message": (
+                        "Один табельный номер встречается в нескольких "
+                        "различающихся строках. Автоматическая загрузка "
+                        "этого сотрудника заблокирована."
+                    ),
+                    "raw_data": {
+                        "personnel_number": personnel_number,
+                        "source_row": conflicting.get("source_row"),
+                    },
+                }
+            )
+
+    prepared.sort(key=lambda item: int(item.get("source_row") or 0))
+    return prepared, issues
+
+
 HANDLERS = {
     "employees": _upsert_employee,
     "equipment": _upsert_equipment,
@@ -355,6 +435,8 @@ async def sync_reference(source_key: str) -> dict:
         await client.close()
 
     header, rows = parse_reference_rows(source, cells)
+    source_rows_read = len(rows)
+    rows, preflight_issues = _prepare_reference_rows(source_key, rows)
 
     with engine.begin() as connection:
         log_id = _start_log(connection, source)
@@ -367,7 +449,7 @@ async def sync_reference(source_key: str) -> dict:
                 connection,
                 log_id,
                 status="BLOCKED",
-                rows_read=len(rows),
+                rows_read=source_rows_read,
                 rows_applied=0,
                 rows_skipped=len(rows),
                 rows_error=0,
@@ -377,10 +459,21 @@ async def sync_reference(source_key: str) -> dict:
             return {
                 "source": source_key,
                 "status": "BLOCKED",
-                "rows_read": len(rows),
+                "rows_read": source_rows_read,
                 "rows_applied": 0,
                 "message": message,
             }
+
+        for item in preflight_issues:
+            _issue(
+                connection,
+                source,
+                item.get("row_number"),
+                item["code"],
+                item["message"],
+                item.get("raw_data"),
+                severity=item.get("severity", "ERROR"),
+            )
 
         handler = HANDLERS.get(source_key)
         if handler is None:
@@ -389,7 +482,7 @@ async def sync_reference(source_key: str) -> dict:
                 connection,
                 log_id,
                 status="BLOCKED",
-                rows_read=len(rows),
+                rows_read=source_rows_read,
                 rows_applied=0,
                 rows_skipped=len(rows),
                 rows_error=0,
@@ -397,7 +490,16 @@ async def sync_reference(source_key: str) -> dict:
             )
             return {"source": source_key, "status": "BLOCKED", "message": message}
 
-        applied = skipped = errors = 0
+        applied = 0
+        skipped = sum(
+            1 for item in preflight_issues
+            if item.get("severity") == "WARNING"
+        )
+        errors = sum(
+            1 for item in preflight_issues
+            if item.get("severity") == "ERROR"
+        )
+
         for row in rows:
             try:
                 handler(connection, row)
@@ -414,7 +516,7 @@ async def sync_reference(source_key: str) -> dict:
             connection,
             log_id,
             status=status,
-            rows_read=len(rows),
+            rows_read=source_rows_read,
             rows_applied=applied,
             rows_skipped=skipped,
             rows_error=errors,
@@ -423,7 +525,7 @@ async def sync_reference(source_key: str) -> dict:
         return {
             "source": source_key,
             "status": status,
-            "rows_read": len(rows),
+            "rows_read": source_rows_read,
             "rows_applied": applied,
             "rows_skipped": skipped,
             "rows_error": errors,
