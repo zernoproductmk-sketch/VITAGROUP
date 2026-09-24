@@ -21,6 +21,7 @@ from .management_routes import router as management_router
 from .problem_center_routes import router as problem_center_router
 from .launch_readiness_routes import router as launch_readiness_router
 from .reason_admin_routes import router as reason_admin_router
+from .norm_admin_routes import router as norm_admin_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -54,6 +55,7 @@ app.include_router(management_router)
 app.include_router(problem_center_router)
 app.include_router(launch_readiness_router)
 app.include_router(reason_admin_router)
+app.include_router(norm_admin_router)
 
 
 @app.get("/health")
