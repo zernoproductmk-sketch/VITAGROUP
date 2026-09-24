@@ -1,3 +1,4 @@
+import LaunchReadiness from "./LaunchReadiness";
 import ProblemCenter from "./ProblemCenter";
 import ManagementDashboard from "./ManagementDashboard";
 import ProductionManagerDashboard from "./ProductionManagerDashboard";
@@ -31,7 +32,8 @@ const menu = [
   { key: "shift-control", label: "Контроль смены", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","ACCOUNTANT_PRODUCTION","ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "payroll", label: "Сдельная ЗП", roles: ["ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "integrations", label: "Интеграции", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"] },
-  { key: "users", label: "Пользователи", roles: ["ADMIN"] }
+  { key: "users", label: "Пользователи", roles: ["ADMIN"] },
+  { key: "launch-readiness", label: "Готовность к запуску", roles: ["PRODUCTION_MANAGER","MANAGEMENT","ADMIN"] }
 ];
 
 function defaultSectionForRoles(roles = []) {
@@ -517,11 +519,11 @@ export default function App() {
       <header>
         <div><p>ООО «ВИТА ГРУПП»</p><h1>{title}</h1></div>
         <div className="controls">
-          {section !== "integrations" && section !== "erp-plan" && section !== "users" && <div className="shift-switch">
+          {section !== "integrations" && section !== "erp-plan" && section !== "users" && section !== "launch-readiness" && <div className="shift-switch">
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
-          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "users" ? "Управление доступом" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
+          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "users" ? "Управление доступом" : section === "launch-readiness" ? "Контроль подготовки" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
         </div>
       </header>
       <div className="content">
@@ -560,6 +562,7 @@ export default function App() {
         {section === "payroll" && <PayrollPage readOnly={!canEditPayroll} />}
         {section === "integrations" && <Integrations />}
         {section === "users" && <UserAdminPage />}
+        {section === "launch-readiness" && <LaunchReadiness onNavigate={(target)=>setSection(target || "launch-readiness")} />}
       </div>
     </main>
   </div>;
