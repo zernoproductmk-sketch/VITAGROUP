@@ -175,6 +175,20 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  shiftCloseReadiness: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return request(
+      `/api/v1/shift-master/close-readiness?${params.toString()}`,
+      { ready: false, shift: { business_date: businessDate, type: shiftCode }, blockers: [], warnings: [] }
+    );
+  },
+  closeShift: (businessDate, shiftCode) => {
+    const params = new URLSearchParams({ business_date: businessDate, shift_code: shiftCode });
+    return strictRequest(
+      `/api/v1/shift-master/close?${params.toString()}`,
+      { method: "POST" }
+    );
+  },
   shiftMasterDashboard: (businessDate, shiftCode) => {
     const params = new URLSearchParams();
     if (businessDate) params.set("business_date", businessDate);
