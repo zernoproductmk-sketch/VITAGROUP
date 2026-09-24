@@ -213,6 +213,147 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
             ).mappings()
         ]
 
+
+        if workspace == "operator":
+            recent_rows = connection.execute(
+                text("""
+                    SELECT
+                        poe.id,
+                        poe.occurred_at AS event_at,
+                        'Выпуск' AS event_type,
+                        poe.quantity,
+                        e.code AS equipment_code,
+                        p.name AS product_name,
+                        po.order_no,
+                        poe.comment
+                    FROM production_output_events poe
+                    JOIN production_runs pr ON pr.id = poe.production_run_id
+                    JOIN equipment e ON e.id = pr.equipment_id
+                    JOIN products p ON p.id = pr.product_id
+                    LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                    JOIN shifts s ON s.id = pr.shift_id
+                    JOIN shift_types st ON st.id = s.shift_type_id
+                    WHERE poe.source_system = 'WEB'
+                      AND s.business_date = :business_date
+                      AND st.code = :shift_code
+                    UNION ALL
+                    SELECT
+                        de.id,
+                        de.occurred_at AS event_at,
+                        'Брак' AS event_type,
+                        de.quantity,
+                        e.code AS equipment_code,
+                        p.name AS product_name,
+                        po.order_no,
+                        de.comment
+                    FROM defect_events de
+                    JOIN production_runs pr ON pr.id = de.production_run_id
+                    JOIN equipment e ON e.id = pr.equipment_id
+                    JOIN products p ON p.id = pr.product_id
+                    LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                    JOIN shifts s ON s.id = pr.shift_id
+                    JOIN shift_types st ON st.id = s.shift_type_id
+                    WHERE de.source_system = 'WEB'
+                      AND de.reported_by = 'OPERATOR'
+                      AND s.business_date = :business_date
+                      AND st.code = :shift_code
+                    ORDER BY event_at DESC
+                    LIMIT 50
+                """),
+                {"business_date": business_date, "shift_code": shift_code},
+            ).mappings().all()
+        elif workspace == "qc":
+            recent_rows = connection.execute(
+                text("""
+                    SELECT
+                        de.id,
+                        de.occurred_at AS event_at,
+                        'Брак ОТК' AS event_type,
+                        de.quantity,
+                        e.code AS equipment_code,
+                        p.name AS product_name,
+                        po.order_no,
+                        de.comment
+                    FROM defect_events de
+                    JOIN production_runs pr ON pr.id = de.production_run_id
+                    JOIN equipment e ON e.id = pr.equipment_id
+                    JOIN products p ON p.id = pr.product_id
+                    LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                    JOIN shifts s ON s.id = pr.shift_id
+                    JOIN shift_types st ON st.id = s.shift_type_id
+                    WHERE de.source_system = 'WEB'
+                      AND de.reported_by = 'QC'
+                      AND s.business_date = :business_date
+                      AND st.code = :shift_code
+                    ORDER BY de.occurred_at DESC
+                    LIMIT 50
+                """),
+                {"business_date": business_date, "shift_code": shift_code},
+            ).mappings().all()
+        elif workspace == "warehouse":
+            recent_rows = connection.execute(
+                text("""
+                    SELECT
+                        wr.id,
+                        wr.received_at AS event_at,
+                        'Приемка' AS event_type,
+                        wr.quantity,
+                        e.code AS equipment_code,
+                        p.name AS product_name,
+                        po.order_no,
+                        wr.warehouse_document_no AS comment
+                    FROM warehouse_receipts wr
+                    LEFT JOIN production_runs pr ON pr.id = wr.production_run_id
+                    LEFT JOIN equipment e ON e.id = pr.equipment_id
+                    JOIN products p ON p.id = wr.product_id
+                    LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                    JOIN shifts s ON s.id = wr.shift_id
+                    JOIN shift_types st ON st.id = s.shift_type_id
+                    WHERE wr.source_system = 'WEB'
+                      AND s.business_date = :business_date
+                      AND st.code = :shift_code
+                    ORDER BY wr.received_at DESC
+                    LIMIT 50
+                """),
+                {"business_date": business_date, "shift_code": shift_code},
+            ).mappings().all()
+        else:
+            recent_rows = connection.execute(
+                text("""
+                    SELECT
+                        a.id,
+                        a.observed_at AS event_at,
+                        'Учетчик' AS event_type,
+                        a.quantity,
+                        e.code AS equipment_code,
+                        p.name AS product_name,
+                        po.order_no,
+                        a.ticket_no AS comment
+                    FROM accounting_control_events a
+                    LEFT JOIN production_runs pr ON pr.id = a.production_run_id
+                    LEFT JOIN equipment e ON e.id = a.equipment_id
+                    JOIN products p ON p.id = a.product_id
+                    LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                    JOIN shifts s ON s.id = a.shift_id
+                    JOIN shift_types st ON st.id = s.shift_type_id
+                    WHERE s.business_date = :business_date
+                      AND st.code = :shift_code
+                    ORDER BY a.observed_at DESC
+                    LIMIT 50
+                """),
+                {"business_date": business_date, "shift_code": shift_code},
+            ).mappings().all()
+
+        recent = [
+            {
+                **dict(r),
+                "id": str(r["id"]),
+                "event_at": r["event_at"].isoformat(),
+                "quantity": _num(r["quantity"]),
+            }
+            for r in recent_rows
+        ]
+
     return {
         "workspace": workspace,
         "shift": {
@@ -242,6 +383,7 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
         "downtime_reasons": downtime_reasons,
         "defect_reasons": defect_reasons,
         "active_downtime": active_downtime,
+        "recent": recent,
     }
 
 
