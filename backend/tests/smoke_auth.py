@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
@@ -9,6 +10,7 @@ from sqlalchemy import text
 from app.auth import hash_password
 from app.database import engine
 from app.main import app
+from app.norm_admin_service import save_manual_norm
 from app.shifts import ensure_shift
 
 
@@ -134,10 +136,117 @@ def _test_shift_rules() -> None:
     assert night_end.timetz().replace(tzinfo=None) == time(9, 0)
 
 
+def _test_manual_norm() -> None:
+    business_date = date(2026, 9, 24)
+
+    with engine.begin() as connection:
+        admin_id = connection.execute(
+            text("SELECT id FROM users WHERE email=:email"),
+            {"email": ADMIN_EMAIL},
+        ).scalar_one()
+
+        product_id = connection.execute(
+            text(
+                """
+                INSERT INTO products (code, article, name, unit, is_active)
+                VALUES ('CI-NORM-PRODUCT','CI-NORM-PRODUCT','CI Norm Product','pcs',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        equipment_id = connection.execute(
+            text(
+                """
+                INSERT INTO equipment (code, name, is_active)
+                VALUES ('CI-NORM-LINE','CI Norm Line',true)
+                ON CONFLICT (code)
+                DO UPDATE SET is_active=true
+                RETURNING id
+                """
+            )
+        ).scalar_one()
+
+        shift_id = ensure_shift(connection, business_date, "DAY")
+
+        run_id = connection.execute(
+            text(
+                """
+                INSERT INTO production_runs (
+                    shift_id,
+                    equipment_id,
+                    product_id,
+                    planned_qty,
+                    ideal_rate_per_hour,
+                    status
+                ) VALUES (
+                    :shift_id,
+                    :equipment_id,
+                    :product_id,
+                    1000,
+                    NULL,
+                    'PLANNED'
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "shift_id": shift_id,
+                "equipment_id": equipment_id,
+                "product_id": product_id,
+            },
+        ).scalar_one()
+
+    saved = save_manual_norm(
+        norm_id=None,
+        product_id=product_id,
+        equipment_id=equipment_id,
+        ideal_rate_per_hour=Decimal("5000"),
+        valid_from=business_date,
+        valid_to=None,
+        apply_to_open_runs=True,
+        user_id=admin_id,
+    )
+    assert saved["ideal_rate_per_hour"] == 5000.0
+    assert saved["applied_runs"] >= 1
+
+    with engine.begin() as connection:
+        rate = connection.execute(
+            text(
+                """
+                SELECT ideal_rate_per_hour
+                FROM production_runs
+                WHERE id=:run_id
+                """
+            ),
+            {"run_id": run_id},
+        ).scalar_one()
+    assert float(rate) == 5000.0
+
+    overlap_blocked = False
+    try:
+        save_manual_norm(
+            norm_id=None,
+            product_id=product_id,
+            equipment_id=equipment_id,
+            ideal_rate_per_hour=Decimal("5100"),
+            valid_from=business_date,
+            valid_to=None,
+            apply_to_open_runs=False,
+            user_id=admin_id,
+        )
+    except ValueError:
+        overlap_blocked = True
+    assert overlap_blocked, "overlapping production norm was not blocked"
+
+
 def main() -> None:
     _create_user(ADMIN_EMAIL, ADMIN_PASSWORD, "ADMIN")
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
+    _test_manual_norm()
 
     client = TestClient(app)
 
