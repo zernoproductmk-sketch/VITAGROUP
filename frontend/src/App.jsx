@@ -459,6 +459,7 @@ export default function App() {
   const canEditPayroll = roles.includes("ECONOMIST") || roles.includes("ADMIN");
   const canEditReconciliation = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ACCOUNTANT_PRODUCTION") || roles.includes("ADMIN");
   const canCloseShift = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ADMIN");
+  const canVerifyShift = roles.includes("PRODUCTION_MANAGER") || roles.includes("ADMIN");
 
   return <div className="app">
     <aside>
@@ -486,6 +487,7 @@ export default function App() {
         {section === "shift-master" && <ShiftMasterDashboard businessDate={data?.shift?.business_date} shiftCode={shift} canClose={canCloseShift} onOpenControl={() => setSection("shift-control")} />}
         {section === "production-manager" && <ProductionManagerDashboard
           businessDate={data?.shift?.business_date}
+          canVerify={canVerifyShift}
           onOpenMaster={(shiftCode)=>{setShift(shiftCode);setSection("shift-master");}}
           onOpenControl={(shiftCode)=>{setShift(shiftCode);setSection("shift-control");}}
         />}
