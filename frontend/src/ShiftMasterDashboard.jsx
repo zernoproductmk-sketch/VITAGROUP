@@ -76,13 +76,25 @@ function LineCard({ line, onOpenControl }) {
   </article>;
 }
 
-export default function ShiftMasterDashboard({ businessDate, shiftCode, onOpenControl }) {
+export default function ShiftMasterDashboard({ businessDate, shiftCode, onOpenControl, canClose }) {
   const [data, setData] = useState(null);
   const [showProblems, setShowProblems] = useState(false);
+  const [closeState, setCloseState] = useState(null);
+  const [closeMessage, setCloseMessage] = useState("");
+
+  const refresh = async () => {
+    const [dashboard, readiness] = await Promise.all([
+      api.shiftMasterDashboard(businessDate, shiftCode),
+      api.shiftCloseReadiness(businessDate, shiftCode)
+    ]);
+    setData(dashboard);
+    setCloseState(readiness);
+  };
 
   useEffect(() => {
     setData(null);
-    api.shiftMasterDashboard(businessDate, shiftCode).then(setData);
+    setCloseState(null);
+    refresh();
   }, [businessDate, shiftCode]);
 
   const lines = useMemo(() => {
@@ -136,6 +148,50 @@ export default function ShiftMasterDashboard({ businessDate, shiftCode, onOpenCo
         </div>)}
       </div>
     </section>}
+
+    <section className="card panel master-close-panel">
+      <div className="panel-head">
+        <div>
+          <h2>Закрытие смены</h2>
+          <span>Контрольный чек-лист перед фиксацией статуса CLOSED</span>
+        </div>
+        <span className={`status ${closeState?.ready ? "success" : "warning"}`}>
+          {closeState?.ready ? "ГОТОВА К ЗАКРЫТИЮ" : "ЕСТЬ БЛОКИРУЮЩИЕ ПУНКТЫ"}
+        </span>
+      </div>
+
+      <div className="close-checklist">
+        {(closeState?.blockers || []).map(item => <div className="close-item blocker" key={item.code}>
+          <b>Блокирует</b><span>{item.message}</span>
+        </div>)}
+        {(closeState?.warnings || []).map(item => <div className="close-item warning-item" key={item.code}>
+          <b>Предупреждение</b><span>{item.message}</span>
+        </div>)}
+        {closeState?.ready && (closeState?.warnings || []).length === 0 && <div className="close-item ready-item">
+          <b>Готово</b><span>Блокирующих замечаний нет.</span>
+        </div>}
+      </div>
+
+      {closeMessage && <div className="notice">{closeMessage}</div>}
+
+      {canClose && <div className="master-close-actions">
+        <button
+          className="btn primary"
+          disabled={!closeState?.ready || data.shift?.status === "CLOSED" || data.shift?.status === "VERIFIED"}
+          onClick={async()=>{
+            try {
+              const result = await api.closeShift(businessDate, shiftCode);
+              setCloseMessage(result.already_closed ? "Смена уже была закрыта." : "Смена закрыта.");
+              await refresh();
+            } catch (error) {
+              setCloseMessage(error.message || "Не удалось закрыть смену");
+            }
+          }}
+        >
+          {data.shift?.status === "CLOSED" || data.shift?.status === "VERIFIED" ? "Смена закрыта" : "Закрыть смену"}
+        </button>
+      </div>}
+    </section>
 
     <section className="master-lines">
       {lines.map(line => <LineCard key={line.production_run_id} line={line} onOpenControl={onOpenControl} />)}
