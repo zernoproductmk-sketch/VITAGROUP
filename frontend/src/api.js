@@ -175,6 +175,30 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  workspaceContext: (kind, businessDate, shiftCode) => {
+    const params = new URLSearchParams();
+    if (businessDate) params.set("business_date", businessDate);
+    if (shiftCode) params.set("shift_code", shiftCode);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(
+      `/api/v1/workspaces/${kind}/context${suffix}`,
+      {
+        workspace: kind,
+        shift: { business_date: businessDate || "", code: shiftCode || "DAY", label: shiftCode === "NIGHT" ? "НОЧЬ" : "ДЕНЬ", time: shiftCode === "NIGHT" ? "21:00–09:00" : "09:00–21:00" },
+        runs: [],
+        downtime_reasons: [],
+        defect_reasons: [],
+        active_downtime: []
+      }
+    );
+  },
+  operatorOutput: (payload) => request("/api/v1/workspaces/operator/output", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  operatorDefect: (payload) => request("/api/v1/workspaces/operator/defect", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  operatorDowntimeStart: (payload) => request("/api/v1/workspaces/operator/downtime/start", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  operatorDowntimeStop: (downtimeId, payload = {}) => request(`/api/v1/workspaces/operator/downtime/${downtimeId}/stop`, { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  qcDefect: (payload) => request("/api/v1/workspaces/qc/defect", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  warehouseReceipt: (payload) => request("/api/v1/workspaces/warehouse/receipt", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
+  accountantControl: (payload) => request("/api/v1/workspaces/accountant/control", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
   hasToken: () => Boolean(getToken()),
   login: async (email, password) => {
     const result = await strictRequest("/api/v1/auth/login", {
