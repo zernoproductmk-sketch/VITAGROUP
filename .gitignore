@@ -27,3 +27,8 @@ build/
 data/
 uploads/
 backups/
+
+# Database backups
+*.dump
+*.backup
+*.sql.gz
