@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import require_roles
-from .master_data_sync import preview_reference, sync_all_references, sync_reference
+from .master_data_sync import pilot_sync_references, preview_reference, sync_all_references, sync_reference
 from .reference_sources import REFERENCE_SOURCES
 
 router = APIRouter(
@@ -31,6 +31,11 @@ def sources():
         }
         for source in REFERENCE_SOURCES.values()
     ]
+
+
+@router.post("/pilot-sync")
+async def pilot_sync():
+    return await pilot_sync_references()
 
 
 @router.post("/sync")
