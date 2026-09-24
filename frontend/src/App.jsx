@@ -1,3 +1,4 @@
+import RoleWorkspace from "./RoleWorkspace";
 import LoginPage from "./LoginPage";
 import UserAdminPage from "./UserAdminPage";
 import PayrollPage from "./PayrollPage";
@@ -8,6 +9,10 @@ import { api } from "./api";
 
 const menu = [
   { key: "dashboard", label: "Обзор", roles: ["OPERATOR","QC","WAREHOUSE","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
+  { key: "operator-workspace", label: "Мое задание", roles: ["OPERATOR","ADMIN"] },
+  { key: "qc-workspace", label: "Контроль качества", roles: ["QC","ADMIN"] },
+  { key: "warehouse-workspace", label: "Приемка продукции", roles: ["WAREHOUSE","ADMIN"] },
+  { key: "accountant-workspace", label: "Учет выпуска", roles: ["ACCOUNTANT_PRODUCTION","ADMIN"] },
   { key: "production", label: "Производство", roles: ["OPERATOR","ACCOUNTANT_PRODUCTION","SHIFT_MASTER","PRODUCTION_MANAGER","ADMIN"] },
   { key: "erp-plan", label: "План ERP", roles: ["ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
   { key: "oee-detail", label: "OEE детально", roles: ["SHIFT_MASTER","PRODUCTION_MANAGER","ECONOMIST","MANAGEMENT","ADMIN"] },
@@ -468,6 +473,10 @@ export default function App() {
       </header>
       <div className="content">
         {section === "dashboard" && <Dashboard data={data} />}
+        {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={data?.shift?.business_date} shiftCode={shift} />}
+        {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={data?.shift?.business_date} shiftCode={shift} />}
+        {section === "warehouse-workspace" && <RoleWorkspace kind="warehouse" businessDate={data?.shift?.business_date} shiftCode={shift} />}
+        {section === "accountant-workspace" && <RoleWorkspace kind="accountant" businessDate={data?.shift?.business_date} shiftCode={shift} />}
         {section === "production" && <Dashboard data={data} />}
         {section === "erp-plan" && <ERPPlan />}
         {section === "oee-detail" && <OEEPage businessDate={data?.shift?.business_date} shiftCode={shift} />}
