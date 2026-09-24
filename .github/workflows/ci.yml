@@ -67,7 +67,7 @@ jobs:
               latest = connection.execute(
                   text("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1")
               ).scalar_one()
-              assert latest == "012_reconciliation_cases.sql", latest
+              assert latest == "013_qc_inspections.sql", latest
           print("database and migrations ok")
           PY
 
