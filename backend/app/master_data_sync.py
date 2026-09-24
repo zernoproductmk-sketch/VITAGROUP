@@ -79,6 +79,29 @@ def _finish_log(connection, log_id: int, *, status: str, rows_read: int, rows_ap
     )
 
 
+def _resolve_previous_issues(connection, source) -> int:
+    result = connection.execute(
+        text(
+            """
+            UPDATE master_data_sync_issues
+            SET status = 'RESOLVED',
+                resolved_at = now()
+            WHERE source_system = 'COVERSE'
+              AND source_key = :key
+              AND source_document_id = :document_id
+              AND source_sheet = :sheet
+              AND status = 'OPEN'
+            """
+        ),
+        {
+            "key": source.key,
+            "document_id": source.document_id,
+            "sheet": source.sheet_name,
+        },
+    )
+    return int(result.rowcount or 0)
+
+
 def _issue(connection, source, row_number, code, message, raw_data=None, severity="ERROR"):
     connection.execute(
         text(
@@ -619,6 +642,10 @@ async def sync_reference(source_key: str) -> dict:
 
     with engine.begin() as connection:
         log_id = _start_log(connection, source)
+        previous_issues_resolved = _resolve_previous_issues(
+            connection,
+            source,
+        )
 
         missing_headers = validate_headers(source, header)
         if missing_headers:
@@ -633,7 +660,11 @@ async def sync_reference(source_key: str) -> dict:
                 rows_skipped=len(rows),
                 rows_error=0,
                 message=message,
-                details={"header": header, "missing_headers": missing_headers},
+                details={
+                    "header": header,
+                    "missing_headers": missing_headers,
+                    "previous_issues_resolved": previous_issues_resolved,
+                },
             )
             return {
                 "source": source_key,
@@ -699,6 +730,9 @@ async def sync_reference(source_key: str) -> dict:
             rows_applied=applied,
             rows_skipped=skipped,
             rows_error=errors,
+            details={
+                "previous_issues_resolved": previous_issues_resolved,
+            },
         )
 
         return {
