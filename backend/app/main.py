@@ -14,6 +14,7 @@ from .user_admin_routes import router as user_admin_router
 from .workspace_routes import router as workspace_router
 from .reconciliation_routes import router as reconciliation_control_router
 from .shift_master_routes import router as shift_master_router
+from .production_manager_routes import router as production_manager_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -42,6 +43,7 @@ app.include_router(user_admin_router)
 app.include_router(workspace_router)
 app.include_router(reconciliation_control_router)
 app.include_router(shift_master_router)
+app.include_router(production_manager_router)
 
 
 @app.get("/health")
