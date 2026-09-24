@@ -341,3 +341,171 @@ def shift_master_dashboard(
         "lines": line_rows,
         "alerts": alerts,
     }
+
+
+def shift_close_readiness(
+    business_date: date | None = None,
+    shift_code: str | None = None,
+) -> dict:
+    dashboard = shift_master_dashboard(business_date, shift_code)
+    shift_id = dashboard["shift"].get("id")
+
+    blockers = []
+    warnings = []
+
+    if not shift_id:
+        blockers.append({
+            "code": "SHIFT_NOT_CREATED",
+            "message": "Смена еще не создана в базе",
+        })
+        return {
+            "ready": False,
+            "shift": dashboard["shift"],
+            "blockers": blockers,
+            "warnings": warnings,
+        }
+
+    if dashboard["summary"]["downtime"] > 0:
+        blockers.append({
+            "code": "ACTIVE_DOWNTIME",
+            "message": f"Есть активные простои: {dashboard['summary']['downtime']}",
+        })
+
+    unfinished = [
+        line for line in dashboard["lines"]
+        if line["state"] not in {"COMPLETED", "VERIFIED"}
+    ]
+    if unfinished:
+        blockers.append({
+            "code": "UNFINISHED_RUNS",
+            "message": f"Не завершены производственные запуски: {len(unfinished)}",
+        })
+
+    open_reconciliation = [
+        line for line in dashboard["lines"]
+        if line.get("reconciliation")
+        and line["reconciliation"]["severity"] != "OK"
+        and line["reconciliation"].get("case_status") != "RESOLVED"
+    ]
+    if open_reconciliation:
+        blockers.append({
+            "code": "OPEN_RECONCILIATION",
+            "message": f"Есть незакрытые расхождения: {len(open_reconciliation)}",
+        })
+
+    missing_norm = [
+        line for line in dashboard["lines"]
+        if any(a["type"] == "MISSING_NORM" for a in line.get("alerts", []))
+    ]
+    if missing_norm:
+        warnings.append({
+            "code": "MISSING_NORM",
+            "message": f"Нет норматива скорости у запусков: {len(missing_norm)}",
+        })
+
+    no_staff = [
+        line for line in dashboard["lines"]
+        if not line.get("staff")
+    ]
+    if no_staff:
+        warnings.append({
+            "code": "NO_STAFF_ASSIGNMENT",
+            "message": f"Не определены сотрудники на линиях: {len(no_staff)}",
+        })
+
+    return {
+        "ready": len(blockers) == 0,
+        "shift": dashboard["shift"],
+        "blockers": blockers,
+        "warnings": warnings,
+    }
+
+
+def close_shift(
+    business_date: date,
+    shift_code: str,
+    user_id: UUID,
+) -> dict:
+    readiness = shift_close_readiness(business_date, shift_code)
+    if not readiness["ready"]:
+        raise ValueError("Смена не готова к закрытию")
+
+    shift_id = readiness["shift"].get("id")
+    if not shift_id:
+        raise ValueError("Смена не найдена")
+
+    with engine.begin() as connection:
+        old = connection.execute(
+            text(
+                """
+                SELECT id, status
+                FROM shifts
+                WHERE id = :shift_id
+                FOR UPDATE
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        ).mappings().first()
+
+        if not old:
+            raise LookupError("Смена не найдена")
+
+        if old["status"] == "CLOSED":
+            return {
+                "status": "CLOSED",
+                "shift_id": shift_id,
+                "already_closed": True,
+            }
+
+        if old["status"] == "VERIFIED":
+            return {
+                "status": "VERIFIED",
+                "shift_id": shift_id,
+                "already_closed": True,
+            }
+
+        connection.execute(
+            text(
+                """
+                UPDATE shifts
+                SET status = 'CLOSED'
+                WHERE id = :shift_id
+                """
+            ),
+            {"shift_id": UUID(shift_id)},
+        )
+
+        connection.execute(
+            text(
+                """
+                INSERT INTO audit_log (
+                    table_name,
+                    record_id,
+                    action,
+                    changed_by_user_id,
+                    old_data,
+                    new_data,
+                    reason
+                ) VALUES (
+                    'shifts',
+                    :shift_id,
+                    'UPDATE',
+                    :user_id,
+                    jsonb_build_object('status', :old_status),
+                    jsonb_build_object('status', 'CLOSED'),
+                    'Закрытие смены сменным мастером / руководителем производства'
+                )
+                """
+            ),
+            {
+                "shift_id": UUID(shift_id),
+                "user_id": user_id,
+                "old_status": old["status"],
+            },
+        )
+
+    return {
+        "status": "CLOSED",
+        "shift_id": shift_id,
+        "already_closed": False,
+    }
