@@ -82,6 +82,40 @@ def integration_dashboard() -> dict:
             )
         ).scalar_one()
 
+        master_issue_summary = [
+            {
+                "source_key": row["source_key"],
+                "issue_code": row["issue_code"],
+                "severity": row["severity"],
+                "count": int(row["count"] or 0),
+                "rows": row["rows"] or [],
+            }
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT
+                        source_key,
+                        issue_code,
+                        severity,
+                        count(*) AS count,
+                        array_agg(source_row ORDER BY source_row)
+                            FILTER (WHERE source_row IS NOT NULL) AS rows
+                    FROM master_data_sync_issues
+                    WHERE status = 'OPEN'
+                    GROUP BY source_key, issue_code, severity
+                    ORDER BY
+                        CASE severity
+                            WHEN 'ERROR' THEN 1
+                            WHEN 'WARNING' THEN 2
+                            ELSE 3
+                        END,
+                        source_key,
+                        issue_code
+                    """
+                )
+            ).mappings()
+        ]
+
         master_inventory = connection.execute(
             text(
                 """
@@ -163,6 +197,7 @@ def integration_dashboard() -> dict:
             "blockers": pilot_blockers,
             "sources": pilot_sources,
         },
+        "master_issue_summary": master_issue_summary,
         "totals": {
             "unresolved": unresolved_count,
             "open_resolution_issues": open_issues,
