@@ -255,6 +255,45 @@ def _test_manual_norm() -> None:
     assert overlap_blocked, "overlapping production norm was not blocked"
 
 
+def _test_product_duplicate_preflight() -> None:
+    rows = [
+        {
+            "source_row": 2,
+            "article": "A-1",
+            "name": "Product One",
+            "warehouse_code": "WH-1",
+        },
+        {
+            "source_row": 3,
+            "article": "A-1",
+            "name": "Product One",
+            "warehouse_code": "WH-2",
+        },
+        {
+            "source_row": 4,
+            "article": "B-1",
+            "name": "Product B First",
+            "warehouse_code": "WH-3",
+        },
+        {
+            "source_row": 5,
+            "article": "B-1",
+            "name": "Product B Other",
+            "warehouse_code": "WH-4",
+        },
+    ]
+
+    prepared, issues = _prepare_reference_rows("products", rows)
+
+    assert len(prepared) == 2
+    assert {row["warehouse_code"] for row in prepared} == {"WH-1", "WH-2"}
+    conflicts = [
+        x for x in issues
+        if x["code"] == "DUPLICATE_ARTICLE_NAME_CONFLICT"
+    ]
+    assert len(conflicts) == 2
+
+
 def _test_employee_duplicate_preflight() -> None:
     rows = [
         {
@@ -693,6 +732,7 @@ def main() -> None:
     _create_user(OPERATOR_EMAIL, OPERATOR_PASSWORD, "OPERATOR")
     _test_shift_rules()
     _test_manual_norm()
+    _test_product_duplicate_preflight()
     _test_employee_duplicate_preflight()
     _test_coverse_pagination()
     _test_qc_no_defect_confirmation()
