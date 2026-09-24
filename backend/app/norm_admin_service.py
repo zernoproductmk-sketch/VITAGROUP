@@ -124,8 +124,8 @@ def _assert_no_overlap(
                   )
                   &&
                   daterange(
-                    :valid_from,
-                    COALESCE(:valid_to + 1, 'infinity'::date),
+                    CAST(:valid_from AS date),
+                    COALESCE(CAST(:valid_to AS date) + 1, 'infinity'::date),
                     '[)'
                   )
             ORDER BY n.valid_from
