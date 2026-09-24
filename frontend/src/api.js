@@ -175,6 +175,32 @@ async function request(path, fallbackValue, options = {}) {
 }
 
 export const api = {
+  managementOverview: (endDate, days = 14) => {
+    const params = new URLSearchParams({ days: String(days) });
+    if (endDate) params.set("end_date", endDate);
+    return request(
+      `/api/v1/management/overview?${params.toString()}`,
+      {
+        period: { date_from: "", date_to: endDate || "", days },
+        summary: {
+          plan: 0,
+          output: 0,
+          good: 0,
+          qc_defect: 0,
+          downtime_minutes: 0,
+          open_cases: 0,
+          critical_cases: 0,
+          missing_norm_runs: 0,
+          completion_percent: null,
+          defect_rate_percent: null,
+          average_oee: null
+        },
+        trend_change: { oee: null, completion: null },
+        daily: [],
+        problem_lines: []
+      }
+    );
+  },
   productionManagerDay: (businessDate) => {
     const params = new URLSearchParams({ business_date: businessDate });
     return request(
