@@ -274,6 +274,7 @@ function Integrations() {
   const [notice, setNotice] = useState("");
   const [mappingRow, setMappingRow] = useState(null);
   const [masterPreview, setMasterPreview] = useState({});
+  const [pilotResult, setPilotResult] = useState(null);
 
   const refresh = async () => {
     const [d, u] = await Promise.all([api.integrationDashboard(), api.unresolved()]);
@@ -286,10 +287,27 @@ function Integrations() {
   const run = async (key, action) => {
     setBusy(key);
     setNotice("");
-    const result = await action();
-    setNotice(result?.message || `Операция «${key}» выполнена`);
-    await refresh();
-    setBusy("");
+    try {
+      const result = await action();
+      setNotice(result?.message || `Операция «${key}» выполнена`);
+      await refresh();
+      return result;
+    } catch (error) {
+      setNotice(error.message || `Не удалось выполнить операцию «${key}»`);
+      throw error;
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const runPilotSync = async () => {
+    setPilotResult(null);
+    try {
+      const result = await run("Пилотная загрузка справочников", api.pilotSyncMasterData);
+      setPilotResult(result);
+    } catch {
+      // Сообщение об ошибке уже показано через run().
+    }
   };
 
   const previewMaster = async (key) => {
@@ -314,13 +332,41 @@ function Integrations() {
     <div className="integration-toolbar card">
       <div><h2>Контур интеграций</h2><p>Coverse → staging → сопоставление → рабочие факты</p></div>
       <div className="action-row">
-        <button className="btn secondary" disabled={!!busy} onClick={() => run("Пилотная загрузка справочников", api.pilotSyncMasterData)}>Пилотная загрузка справочников</button>
+        <button className="btn secondary" disabled={!!busy} onClick={runPilotSync}>Пилотная загрузка справочников</button>
         <button className="btn secondary" disabled={!!busy} onClick={() => run("Сопоставление", api.resolveReferences)}>Разрешить связи</button>
         <button className="btn primary" disabled={!!busy} onClick={() => run("Перенос", api.promoteResolved)}>Перенести RESOLVED</button>
       </div>
     </div>
 
     {notice && <div className="notice">{notice}</div>}
+
+    {pilotResult && <section className="card panel pilot-run-report">
+      <div className="panel-head">
+        <div>
+          <h2>Результат пилотной загрузки</h2>
+          <span>Порядок: {(pilotResult.order || []).map(key => sourceNames[key] || key).join(" → ") || "—"}</span>
+        </div>
+        <IntegrationBadge status={pilotResult.status} />
+      </div>
+      <div className="pilot-run-grid">
+        {Object.entries(pilotResult.results || {}).map(([key, item]) => {
+          const preview = pilotResult.previews?.[key];
+          return <article className="pilot-run-item" key={key}>
+            <div className="pilot-master-head">
+              <b>{sourceNames[key] || key}</b>
+              <IntegrationBadge status={item.status} />
+            </div>
+            <div className="pilot-run-stats">
+              <span>Прочитано <b>{formatNumber(item.rows_read ?? preview?.rows_read ?? 0)}</b></span>
+              <span>Применено <b>{formatNumber(item.rows_applied ?? 0)}</b></span>
+              <span>Пропущено <b>{formatNumber(item.rows_skipped ?? preview?.rows_skipped ?? 0)}</b></span>
+              <span>Ошибок <b>{formatNumber(item.rows_error ?? preview?.rows_error ?? 0)}</b></span>
+            </div>
+            <p>{item.message || preview?.message || "Источник обработан"}</p>
+          </article>;
+        })}
+      </div>
+    </section>}
 
     <div className="integration-kpis">
       <div className="card mini-kpi"><span>Неразрешенных событий</span><b>{formatNumber(dashboard.totals?.unresolved)}</b></div>
