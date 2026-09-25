@@ -24,16 +24,22 @@ export default function ERPPlan() {
   const [yandex, setYandex] = useState(null);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const refresh = async () => {
-    const [s, r, y] = await Promise.all([
-      api.erpPlanSummary(),
-      api.erpPlanRows(),
-      api.yandexStatus()
-    ]);
-    setSummary(s);
-    setRows(r.rows || []);
-    setYandex(y);
+    setLoadError("");
+    try {
+      const [s, r, y] = await Promise.all([
+        api.erpPlanSummary(),
+        api.erpPlanRows(),
+        api.yandexStatus()
+      ]);
+      setSummary(s);
+      setRows(r.rows || []);
+      setYandex(y);
+    } catch (error) {
+      setLoadError(error.message || "Backend временно недоступен");
+    }
   };
 
   useEffect(() => { refresh(); }, []);
@@ -49,6 +55,12 @@ export default function ERPPlan() {
     await refresh();
     setBusy("");
   };
+
+  if (!summary && loadError) return <div className="card panel">
+    <h2>План ERP временно недоступен</h2>
+    <p className="muted">{loadError}</p>
+    <button className="btn secondary" onClick={refresh}>Повторить</button>
+  </div>;
 
   if (!summary) return <div className="card panel">Загрузка плана ERP…</div>;
 
