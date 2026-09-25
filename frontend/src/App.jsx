@@ -697,6 +697,8 @@ export default function App() {
         {section === "reasons" && <ReasonAdminPage />}
         {section === "norms" && <NormAdminPage />}
         {section === "test-shift" && <TestShiftPage
+          initialBusinessDate={data?.shift?.business_date}
+          initialShiftCode={shift}
           onOpenERP={()=>setSection("erp-plan")}
           onOpenNorms={()=>setSection("norms")}
           onOpenMaster={(shiftCode)=>{setShift(shiftCode);setSection("shift-master");}}
