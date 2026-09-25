@@ -19,8 +19,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
-    if len(password) < 12:
-        raise ValueError("Пароль должен содержать не менее 12 символов")
+    if len(password) < 6:
+        raise ValueError("Пароль должен содержать не менее 6 символов")
     return password_hash.hash(password)
 
 
