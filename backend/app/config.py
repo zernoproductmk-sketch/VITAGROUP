@@ -17,8 +17,8 @@ class Settings(BaseSettings):
 
     # Coverse
     coverse_api_token: str = ""
-    coverse_api_base_url: str = "https://api.coverse.team"
-    coverse_read_range_path: str = "/v1/documents/{document_id}/values"
+    coverse_api_base_url: str = "https://app.coverse.team/api/v1"
+    coverse_read_range_path: str = "/documents/{document_id}/values/{range}"
 
     # Yandex Disk production plan.
     # Public link is configured only on the production server.
