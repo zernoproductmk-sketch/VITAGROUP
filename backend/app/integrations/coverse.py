@@ -200,7 +200,7 @@ class CoverseClient:
         *,
         page_size: int = 1000,
     ) -> list[list[Any]]:
-        a1 = f"'{sheet_name}'!{range_a1}" if sheet_name else range_a1
+        a1 = f"{sheet_name}!{range_a1}" if sheet_name else range_a1
         encoded_range = quote(a1, safe="!:$")
         endpoint = settings.coverse_read_range_path.lstrip("/").format(
             document_id=document_id,
