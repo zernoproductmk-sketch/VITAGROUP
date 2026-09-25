@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     yandex_plan_public_url: str = ""
     yandex_plan_resource_path: str = ""
 
+    # ERP plan scheduling fallback used only when the source does not contain
+    # an explicit shift. Production pilot can set NEXT_DAY + DAY.
+    erp_plan_missing_shift_policy: str = "SOURCE_DATE"
+    erp_plan_default_shift_code: str = "DAY"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
