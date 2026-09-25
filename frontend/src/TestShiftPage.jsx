@@ -63,9 +63,9 @@ function RunSetup({ run, employees, onSaved }) {
   </article>;
 }
 
-export default function TestShiftPage({ onOpenERP, onOpenNorms, onOpenMaster }) {
-  const [businessDate,setBusinessDate]=useState(isoToday());
-  const [shiftCode,setShiftCode]=useState("DAY");
+export default function TestShiftPage({ onOpenERP, onOpenNorms, onOpenMaster, initialBusinessDate, initialShiftCode }) {
+  const [businessDate,setBusinessDate]=useState(initialBusinessDate || isoToday());
+  const [shiftCode,setShiftCode]=useState(initialShiftCode || "DAY");
   const [data,setData]=useState(null);
   const [notice,setNotice]=useState("");
 
@@ -76,6 +76,18 @@ export default function TestShiftPage({ onOpenERP, onOpenNorms, onOpenMaster }) 
       setNotice(error.message||"Не удалось загрузить подготовку смены");
     }
   };
+
+  useEffect(()=>{
+    if (initialBusinessDate && initialBusinessDate !== businessDate) {
+      setBusinessDate(initialBusinessDate);
+    }
+  },[initialBusinessDate]);
+
+  useEffect(()=>{
+    if (initialShiftCode && initialShiftCode !== shiftCode) {
+      setShiftCode(initialShiftCode);
+    }
+  },[initialShiftCode]);
 
   useEffect(()=>{refresh();},[businessDate,shiftCode]);
 
