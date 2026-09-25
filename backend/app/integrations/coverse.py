@@ -115,7 +115,13 @@ def _cell_value(cell: Any) -> Any:
     if cell is None:
         return None
     if isinstance(cell, dict):
-        return cell.get("formatted") or cell.get("value")
+        # MCP responses use formatted/value, while Coverse REST responses
+        # currently use m/v. Support both representations.
+        for key in ("formatted", "m", "value", "v"):
+            value = cell.get(key)
+            if value not in (None, ""):
+                return value
+        return None
     return cell
 
 
