@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -24,20 +24,47 @@ def _decimal(value: Any) -> Decimal | None:
         return None
 
 
-def _date(value: Any) -> date | None:
+def _execution_datetime(value: Any) -> tuple[datetime | None, bool]:
     if value is None or value == "":
-        return None
+        return None, False
     if isinstance(value, datetime):
-        return value.date()
+        return value, True
     if isinstance(value, date):
-        return value
+        return datetime.combine(value, time.min), False
+
     raw = _text(value)
-    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y"):
+    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M"):
         try:
-            return datetime.strptime(raw, fmt).date()
+            return datetime.strptime(raw, fmt), True
         except ValueError:
             pass
-    return None
+
+    for fmt in ("%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw, fmt)
+            return parsed, False
+        except ValueError:
+            pass
+
+    return None, False
+
+
+def _shift_from_execution(
+    execution_at: datetime | None,
+    has_time: bool,
+) -> tuple[date | None, str | None]:
+    if execution_at is None:
+        return None, None
+
+    if not has_time:
+        return execution_at.date(), None
+
+    value_time = execution_at.time()
+    if value_time < time(9, 0):
+        return execution_at.date() - timedelta(days=1), "NIGHT"
+    if value_time < time(21, 0):
+        return execution_at.date(), "DAY"
+    return execution_at.date(), "NIGHT"
 
 
 def _first_right(row: list[Any], column_index: int):
@@ -161,7 +188,11 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
     order_no = order_match.group(1).strip() if order_match else (_text(order_raw) or None)
 
     execution_date_raw, _, _ = _label_value(rows, "Дата выполнения:")
-    business_date = _date(execution_date_raw)
+    execution_at, execution_has_time = _execution_datetime(execution_date_raw)
+    business_date, shift_code = _shift_from_execution(
+        execution_at,
+        execution_has_time,
+    )
 
     workshop, _, _ = _label_value(rows, "Подразделение:")
     product_name, _, _ = _label_value(rows, "Изделие:")
@@ -223,7 +254,7 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
                         "erp_guid": None,
                         "task_id": task_id,
                         "business_date": business_date,
-                        "shift_code": None,
+                        "shift_code": shift_code,
                         "workshop": _text(workshop) or None,
                         "equipment_code": None,
                         "order_no": order_no,
@@ -259,7 +290,7 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
                 "erp_guid": None,
                 "task_id": task_id,
                 "business_date": business_date,
-                "shift_code": None,
+                "shift_code": shift_code,
                 "workshop": _text(workshop) or None,
                 "equipment_code": None,
                 "order_no": order_no,
@@ -287,6 +318,9 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
         "task_id": task_id,
         "order_no": order_no,
         "business_date": business_date,
+        "shift_code": shift_code,
+        "execution_at": execution_at,
+        "execution_has_time": execution_has_time,
         "workshop": _text(workshop) or None,
         "product_name": _text(product_name) or None,
         "specification": _text(specification) or None,
@@ -303,6 +337,8 @@ def inspect_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
         "task_id": parsed["task_id"],
         "order_no": parsed["order_no"],
         "business_date": parsed["business_date"].isoformat() if parsed["business_date"] else None,
+        "shift_code": parsed["shift_code"],
+        "execution_at": parsed["execution_at"].isoformat(sep=" ") if parsed["execution_at"] else None,
         "workshop": parsed["workshop"],
         "product_name": parsed["product_name"],
         "specification": parsed["specification"],
