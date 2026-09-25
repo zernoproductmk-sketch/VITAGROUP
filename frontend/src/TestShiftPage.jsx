@@ -71,7 +71,21 @@ export default function TestShiftPage({ onOpenERP, onOpenNorms, onOpenMaster, in
 
   const refresh=async()=>{
     try{
-      setData(await api.testShiftContext(businessDate,shiftCode));
+      const primary = await api.testShiftContext(businessDate,shiftCode);
+      if (primary?.shift?.status === "NOT_CREATED") {
+        const alternateCode = shiftCode === "DAY" ? "NIGHT" : "DAY";
+        const alternate = await api.testShiftContext(businessDate,alternateCode);
+        if (
+          alternate?.shift?.status !== "NOT_CREATED" ||
+          (alternate?.summary?.runs || 0) > 0
+        ) {
+          setShiftCode(alternateCode);
+          setData(alternate);
+          setNotice(`Автоматически выбрана смена ${alternateCode === "NIGHT" ? "НОЧЬ" : "ДЕНЬ"}: в ней найден производственный запуск ERP.`);
+          return;
+        }
+      }
+      setData(primary);
     }catch(error){
       setNotice(error.message||"Не удалось загрузить подготовку смены");
     }
