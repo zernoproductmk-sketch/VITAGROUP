@@ -512,12 +512,12 @@ function PasswordChangeScreen({ user, onChanged, onLogout }) {
     <div className="login-card">
       <span className="login-eyebrow">Безопасность</span>
       <h1>Смените временный пароль</h1>
-      <p>Перед началом работы задайте собственный пароль длиной не менее 12 символов.</p>
+      <p>Перед началом работы задайте собственный пароль длиной не менее 6 символов.</p>
       <label><span>Текущий пароль</span><input className="form-control" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></label>
       <label><span>Новый пароль</span><input className="form-control" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></label>
       <label><span>Повторите новый пароль</span><input className="form-control" type="password" value={repeat} onChange={e => setRepeat(e.target.value)} /></label>
       {error && <div className="login-error">{error}</div>}
-      <button className="btn primary login-button" disabled={newPassword.length < 12 || newPassword !== repeat} onClick={save}>Сохранить новый пароль</button>
+      <button className="btn primary login-button" disabled={newPassword.length < 6 || newPassword !== repeat} onClick={save}>Сохранить новый пароль</button>
       <button className="btn ghost login-button" onClick={onLogout}>Выйти</button>
     </div>
   </div>;
