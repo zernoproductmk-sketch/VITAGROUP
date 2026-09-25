@@ -486,6 +486,8 @@ def _persist_printed_1c_plan(
                 "task_id": parsed.get("task_id"),
                 "order_no": parsed.get("order_no"),
                 "business_date": parsed.get("business_date"),
+                "shift_code": parsed.get("shift_code"),
+                "execution_at": parsed.get("execution_at"),
                 "workshop": parsed.get("workshop"),
                 "product_name": item.get("product_name"),
                 "specification": parsed.get("specification"),
