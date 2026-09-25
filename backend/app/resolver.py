@@ -149,38 +149,38 @@ def _find_run_for_order(connection, production_order_id, shift_id, occurred_at):
 def _find_run_for_dimensions(connection, shift_id, equipment_id, product_id, occurred_at):
     if not shift_id:
         return None
-    return _one(
-        connection,
-        """
+
+    conditions = [
+        "pr.shift_id = :shift_id",
+        "pr.status <> 'CANCELLED'",
+    ]
+    params = {"shift_id": shift_id}
+
+    if equipment_id:
+        conditions.append("pr.equipment_id = :equipment_id")
+        params["equipment_id"] = equipment_id
+
+    if product_id:
+        conditions.append("pr.product_id = :product_id")
+        params["product_id"] = product_id
+
+    if occurred_at:
+        conditions.extend(
+            [
+                "(pr.actual_start_at IS NULL OR pr.actual_start_at <= :occurred_at)",
+                "(pr.actual_end_at IS NULL OR pr.actual_end_at >= :occurred_at)",
+            ]
+        )
+        params["occurred_at"] = occurred_at
+
+    sql = f"""
         SELECT pr.id
         FROM production_runs pr
-        WHERE pr.shift_id = :shift_id
-          AND (:equipment_id IS NULL OR pr.equipment_id = :equipment_id)
-          AND (:product_id IS NULL OR pr.product_id = :product_id)
-          AND pr.status <> 'CANCELLED'
-          AND (
-                :occurred_at IS NULL
-                OR pr.actual_start_at IS NULL
-                OR pr.actual_start_at <= :occurred_at
-              )
-          AND (
-                :occurred_at IS NULL
-                OR pr.actual_end_at IS NULL
-                OR pr.actual_end_at >= :occurred_at
-              )
-        ORDER BY
-          CASE WHEN pr.equipment_id = :equipment_id THEN 0 ELSE 1 END,
-          CASE WHEN pr.product_id = :product_id THEN 0 ELSE 1 END,
-          pr.actual_start_at NULLS LAST
+        WHERE {' AND '.join(conditions)}
+        ORDER BY pr.actual_start_at NULLS LAST
         LIMIT 1
-        """,
-        {
-            "shift_id": shift_id,
-            "equipment_id": equipment_id,
-            "product_id": product_id,
-            "occurred_at": occurred_at,
-        },
-    )
+    """
+    return _one(connection, sql, params)
 
 
 def _inherit_from_run(connection, run_id):
@@ -299,6 +299,7 @@ def resolve_staging_events(limit: int = 500) -> dict:
         for raw in rows:
             event = dict(raw)
             counters["processed"] += 1
+            savepoint = connection.begin_nested()
             try:
                 shift_id = event.get("shift_id") or _find_shift(
                     connection, event.get("business_date"), event.get("shift_code")
@@ -409,8 +410,11 @@ def resolve_staging_events(limit: int = 500) -> dict:
                 )
 
                 _write_issues(connection, event["id"], missing, event)
+                savepoint.commit()
 
             except Exception as exc:
+                if savepoint.is_active:
+                    savepoint.rollback()
                 counters["errors"] += 1
                 connection.execute(
                     text(
