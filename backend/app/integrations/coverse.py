@@ -188,7 +188,17 @@ class CoverseClient:
         page_size: int = 1000,
     ) -> list[list[Any]]:
         a1 = f"'{sheet_name}'!{range_a1}" if sheet_name else range_a1
-        encoded_range = quote(a1, safe="!:
+        encoded_range = quote(a1, safe="!:$")
+        endpoint = settings.coverse_read_range_path.lstrip("/").format(
+            document_id=document_id,
+            range=encoded_range,
+        )
+        offset = 0
+        all_cells: list[list[Any]] = []
+
+        while True:
+            response = await self.client.get(
+                endpoint,
                 params={
                     "offset": offset,
                     "limit": page_size,
@@ -199,8 +209,6 @@ class CoverseClient:
             cells, pagination = self._extract_cells_and_pagination(payload)
 
             if offset > 0 and cells:
-                # Coverse can return the header again for some range forms.
-                # Do not duplicate it when it is byte-for-byte identical.
                 if all_cells and cells[0] == all_cells[0]:
                     cells = cells[1:]
 
