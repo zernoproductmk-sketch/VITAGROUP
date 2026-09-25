@@ -112,5 +112,13 @@ def alias(payload: AliasInput):
 
 
 @router.post("/promote")
-def promote(limit: int = Query(default=500, ge=1, le=5000)):
-    return promote_resolved_events(limit)
+def promote(
+    limit: int = Query(default=500, ge=1, le=5000),
+    business_date: date | None = Query(default=None),
+    shift_code: str | None = Query(default=None, pattern="^(DAY|NIGHT)$"),
+):
+    return promote_resolved_events(
+        limit=limit,
+        business_date=business_date,
+        shift_code=shift_code,
+    )
