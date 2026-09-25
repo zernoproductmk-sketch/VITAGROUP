@@ -9,8 +9,8 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 echo "[coverse] checking API hostname resolution"
-if ! getent hosts api.coverse.team >/dev/null 2>&1; then
-  echo "[coverse] ERROR: api.coverse.team does not resolve on this server" >&2
+if ! getent hosts app.coverse.team >/dev/null 2>&1; then
+  echo "[coverse] ERROR: app.coverse.team does not resolve on this server" >&2
   echo "[coverse] Fix server DNS first, then run this script again." >&2
   exit 2
 fi
