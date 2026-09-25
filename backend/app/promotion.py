@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import text
 
 from .database import engine
@@ -9,23 +11,40 @@ def _ensure_shift_id(connection, event: dict):
     return event.get("shift_id")
 
 
-def promote_resolved_events(limit: int = 500) -> dict:
+def promote_resolved_events(
+    limit: int = 500,
+    business_date: date | None = None,
+    shift_code: str | None = None,
+) -> dict:
     counters = {"processed": 0, "promoted": 0, "skipped": 0, "errors": 0}
+
+    conditions = [
+        "resolution_status = 'RESOLVED'",
+        "processing_status = 'PENDING'",
+    ]
+    params: dict = {"limit": limit}
+
+    if business_date is not None:
+        conditions.append("business_date = :business_date")
+        params["business_date"] = business_date
+
+    if shift_code is not None:
+        conditions.append("shift_code = :shift_code")
+        params["shift_code"] = shift_code
 
     with engine.begin() as connection:
         rows = connection.execute(
             text(
-                """
+                f"""
                 SELECT *
                 FROM external_event_staging
-                WHERE resolution_status = 'RESOLVED'
-                  AND processing_status = 'PENDING'
+                WHERE {' AND '.join(conditions)}
                 ORDER BY response_at, source_row
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
                 """
             ),
-            {"limit": limit},
+            params,
         ).mappings().all()
 
         for raw in rows:
