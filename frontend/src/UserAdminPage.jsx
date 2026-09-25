@@ -65,7 +65,7 @@ export default function UserAdminPage() {
 
   const resetPassword = async (user) => {
     const value = window.prompt(
-      `Введите временный пароль для ${user.email}. Минимум 12 символов.`
+      `Введите временный пароль для ${user.email}. Минимум 6 символов.`
     );
     if (!value) return;
     try {
@@ -104,7 +104,7 @@ export default function UserAdminPage() {
       </div>
 
       <div className="action-row user-create-actions">
-        <button className="btn primary" disabled={busy || !form.email || form.password.length < 12 || form.roles.length === 0} onClick={createUser}>Создать пользователя</button>
+        <button className="btn primary" disabled={busy || !form.email || form.password.length < 6 || form.roles.length === 0} onClick={createUser}>Создать пользователя</button>
       </div>
 
       {notice && <div className="notice">{notice}</div>}
