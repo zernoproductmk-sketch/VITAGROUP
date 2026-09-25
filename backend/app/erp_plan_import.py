@@ -567,6 +567,7 @@ def _persist_printed_1c_plan(
                         DO UPDATE SET
                             import_batch_id = EXCLUDED.import_batch_id,
                             business_date = EXCLUDED.business_date,
+                            shift_code = EXCLUDED.shift_code,
                             workshop = EXCLUDED.workshop,
                             order_no = EXCLUDED.order_no,
                             article = EXCLUDED.article,
