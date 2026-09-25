@@ -19,7 +19,7 @@ REFERENCE_SOURCES: dict[str, ReferenceSource] = {
         key="employees",
         document_id="d519a1ec-f251-41db-92e4-e4c5d5b9c3d8",
         sheet_name="Лист 1",
-        range_a1="A:G",
+        range_a1="A1:G1000",
         columns={
             "department_name": 1,
             "full_name": 2,
