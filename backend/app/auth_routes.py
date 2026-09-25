@@ -32,7 +32,7 @@ class LoginInput(BaseModel):
 
 class PasswordChangeInput(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=12, max_length=200)
+    new_password: str = Field(min_length=6, max_length=200)
 
 
 @router.post("/login")
