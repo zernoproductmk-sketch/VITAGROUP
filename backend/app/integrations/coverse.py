@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -186,7 +187,61 @@ class CoverseClient:
         *,
         page_size: int = 1000,
     ) -> list[list[Any]]:
-        endpoint = settings.coverse_read_range_path.format(document_id=document_id)
+        a1 = f"'{sheet_name}'!{range_a1}" if sheet_name else range_a1
+        encoded_range = quote(a1, safe="!:
+        all_cells: list[list[Any]] = []
+
+        while True:
+            response = await self.client.get(
+                endpoint,
+                params={
+                    "offset": offset,
+                    "limit": page_size,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            cells, pagination = self._extract_cells_and_pagination(payload)
+
+            if offset > 0 and cells:
+                # Coverse can return the header again for some range forms.
+                # Do not duplicate it when it is byte-for-byte identical.
+                if all_cells and cells[0] == all_cells[0]:
+                    cells = cells[1:]
+
+            all_cells.extend(cells)
+
+            has_more = pagination.get("hasMore")
+            next_offset = pagination.get("nextOffset")
+            returned = pagination.get("returned")
+
+            if has_more is False:
+                break
+
+            if next_offset is not None:
+                next_offset = int(next_offset)
+                if next_offset <= offset:
+                    break
+                offset = next_offset
+                continue
+
+            page_count = int(returned) if returned is not None else len(cells)
+            if page_count <= 0 or page_count < page_size:
+                break
+
+            offset += page_count
+
+        return all_cells
+
+    async def read_source(self, key: str) -> list[dict[str, Any]]:
+        source = SOURCES[key]
+        cells = await self.read_range(source.document_id, source.sheet_name, source.range_a1)
+        return normalize_rows(source, cells)
+")
+        endpoint = settings.coverse_read_range_path.format(
+            document_id=document_id,
+            range=encoded_range,
+        )
         offset = 0
         all_cells: list[list[Any]] = []
 
