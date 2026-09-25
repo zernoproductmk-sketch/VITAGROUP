@@ -4,7 +4,7 @@ import csv
 import io
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,7 @@ import xlrd
 from openpyxl import load_workbook
 from sqlalchemy import text
 
+from .config import settings
 from .database import engine
 from .integrations.yandex_disk import (
     YandexDiskClient,
@@ -337,6 +338,27 @@ def _normalized_row(
     }
 
 
+def _apply_missing_shift_policy(item: dict[str, Any]) -> dict[str, Any]:
+    if item.get("shift_code"):
+        return item
+
+    policy = settings.erp_plan_missing_shift_policy.strip().upper()
+    if policy != "NEXT_DAY":
+        return item
+
+    business_date = item.get("business_date")
+    if business_date:
+        item["business_date"] = business_date + timedelta(days=1)
+
+    shift_code = settings.erp_plan_default_shift_code.strip().upper() or "DAY"
+    if shift_code not in {"DAY", "NIGHT"}:
+        raise ValueError(
+            "ERP_PLAN_DEFAULT_SHIFT_CODE must be DAY or NIGHT"
+        )
+    item["shift_code"] = shift_code
+    return item
+
+
 def _row_status(item: dict[str, Any]) -> tuple[str, str | None]:
     missing = []
     for field_name in ("business_date", "order_no", "article"):
@@ -439,6 +461,7 @@ def _persist_printed_1c_plan(
         applied = skipped = errors = 0
 
         for item in parsed["outputs"]:
+            item = _apply_missing_shift_policy(dict(item))
             status, error_message = _row_status(item)
             if status == "IGNORED":
                 skipped += 1
@@ -754,7 +777,7 @@ async def import_yandex_plan() -> dict[str, Any]:
             }
 
             try:
-                item = _normalized_row(row, mapping)
+                item = _apply_missing_shift_policy(_normalized_row(row, mapping))
                 status, error_message = _row_status(item)
 
                 if status == "IGNORED":
