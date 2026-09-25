@@ -22,7 +22,7 @@ router = APIRouter(
 
 class UserCreateInput(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=12, max_length=200)
+    password: str = Field(min_length=6, max_length=200)
     roles: list[str]
     employee_id: UUID | None = None
 
@@ -36,7 +36,7 @@ class ActiveInput(BaseModel):
 
 
 class PasswordResetInput(BaseModel):
-    new_password: str = Field(min_length=12, max_length=200)
+    new_password: str = Field(min_length=6, max_length=200)
 
 
 @router.get("")
