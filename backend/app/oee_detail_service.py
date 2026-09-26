@@ -219,9 +219,10 @@ def oee_run_detail(run_id: UUID) -> dict | None:
         "quality": {
             "formula": "Good Count / Total Count",
             "numerator": metrics["good_qty"],
-            "denominator": metrics["output_qty"],
+            "denominator": metrics["total_count_qty"],
             "result": metrics["quality"],
             "unit": "шт",
+            "operator_defect": metrics["operator_defect_qty"],
             "confirmed_qc_defect": metrics["qc_defect_qty"],
         },
         "oee": {
