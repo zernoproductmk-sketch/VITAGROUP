@@ -872,9 +872,22 @@ def record_operator_defect(user, run_id, quantity, reason_id, occurred_at, comme
     return {"status": "ok", "event_id": str(event_id), "occurred_at": event_at.isoformat()}
 
 
+def _report_decimal(report: dict, key: str) -> Decimal | None:
+    value = (report or {}).get(key)
+    if value in (None, ""):
+        return None
+    try:
+        number = Decimal(str(value).replace(",", "."))
+    except Exception:
+        return None
+    return number if number >= 0 else None
+
+
 def save_shift_assignment_report(user, run_id, report: dict) -> dict:
     with engine.begin() as connection:
         run = _load_run(connection, run_id)
+        user_id = UUID(user["id"])
+        report_json = json.dumps(report or {}, ensure_ascii=False, default=str)
 
         connection.execute(
             text("""
@@ -887,10 +900,127 @@ def save_shift_assignment_report(user, run_id, report: dict) -> dict:
             """),
             {
                 "run_id": run_id,
-                "report": json.dumps(report or {}, ensure_ascii=False, default=str),
-                "user_id": UUID(user["id"]),
+                "report": report_json,
+                "user_id": user_id,
             },
         )
+
+        # The shift assignment is the operator's final summary for the run.
+        # Store the final output as a FINAL event so dashboards/OEE use it
+        # without accumulating duplicate quantities on repeated saves.
+        event_at = run["shift_ended_at"] - timedelta(seconds=1)
+        output_qty = _report_decimal(report, "actual_qty")
+        defect_qty = _report_decimal(report, "defect_qty")
+
+        if output_qty is not None:
+            connection.execute(
+                text("""
+                    INSERT INTO production_output_events (
+                        production_run_id,
+                        occurred_at,
+                        quantity,
+                        event_kind,
+                        status,
+                        source_system,
+                        source_record_id,
+                        entered_by_user_id,
+                        comment
+                    ) VALUES (
+                        :run_id,
+                        :event_at,
+                        :quantity,
+                        'FINAL',
+                        'RECORDED',
+                        'WEB',
+                        :source_id,
+                        :user_id,
+                        'Итоговый выпуск из сменного задания'
+                    )
+                    ON CONFLICT (source_system, source_record_id)
+                    WHERE source_record_id IS NOT NULL
+                    DO UPDATE SET
+                        occurred_at = EXCLUDED.occurred_at,
+                        quantity = EXCLUDED.quantity,
+                        event_kind = 'FINAL',
+                        status = 'RECORDED',
+                        entered_by_user_id = EXCLUDED.entered_by_user_id,
+                        comment = EXCLUDED.comment
+                """),
+                {
+                    "run_id": run_id,
+                    "event_at": event_at,
+                    "quantity": output_qty,
+                    "source_id": f"SHIFT_ASSIGNMENT:{run_id}:OUTPUT",
+                    "user_id": user_id,
+                },
+            )
+
+            if output_qty > 0:
+                connection.execute(
+                    text("""
+                        UPDATE production_runs
+                        SET status = CASE
+                                WHEN status IN ('COMPLETED','VERIFIED') THEN status
+                                ELSE 'RUNNING'
+                            END,
+                            updated_at = now()
+                        WHERE id = :run_id
+                    """),
+                    {"run_id": run_id},
+                )
+
+        defect_source_id = f"SHIFT_ASSIGNMENT:{run_id}:DEFECT"
+        if defect_qty is not None and defect_qty > 0:
+            connection.execute(
+                text("""
+                    INSERT INTO defect_events (
+                        production_run_id,
+                        occurred_at,
+                        quantity,
+                        defect_reason_id,
+                        reported_by,
+                        is_confirmed,
+                        source_system,
+                        source_record_id,
+                        entered_by_user_id,
+                        comment
+                    ) VALUES (
+                        :run_id,
+                        :event_at,
+                        :quantity,
+                        NULL,
+                        'OPERATOR',
+                        false,
+                        'WEB',
+                        :source_id,
+                        :user_id,
+                        'Итоговый брак из сменного задания'
+                    )
+                    ON CONFLICT (source_system, source_record_id)
+                    WHERE source_record_id IS NOT NULL
+                    DO UPDATE SET
+                        occurred_at = EXCLUDED.occurred_at,
+                        quantity = EXCLUDED.quantity,
+                        entered_by_user_id = EXCLUDED.entered_by_user_id,
+                        comment = EXCLUDED.comment
+                """),
+                {
+                    "run_id": run_id,
+                    "event_at": event_at,
+                    "quantity": defect_qty,
+                    "source_id": defect_source_id,
+                    "user_id": user_id,
+                },
+            )
+        elif defect_qty == 0:
+            connection.execute(
+                text("""
+                    DELETE FROM defect_events
+                    WHERE source_system = 'WEB'
+                      AND source_record_id = :source_id
+                """),
+                {"source_id": defect_source_id},
+            )
 
         connection.execute(
             text("""
@@ -912,8 +1042,8 @@ def save_shift_assignment_report(user, run_id, report: dict) -> dict:
             """),
             {
                 "run_id": run_id,
-                "user_id": UUID(user["id"]),
-                "report": json.dumps(report or {}, ensure_ascii=False, default=str),
+                "user_id": user_id,
+                "report": report_json,
             },
         )
 
@@ -921,4 +1051,8 @@ def save_shift_assignment_report(user, run_id, report: dict) -> dict:
         "status": "ok",
         "production_run_id": str(run["id"]),
         "report": report or {},
+        "facts_synced": {
+            "output_qty": float(output_qty) if output_qty is not None else None,
+            "operator_defect_qty": float(defect_qty) if defect_qty is not None else None,
+        },
     }
