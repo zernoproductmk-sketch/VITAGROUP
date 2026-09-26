@@ -21,7 +21,7 @@ router = APIRouter(
 
 
 class UserCreateInput(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     password: str = Field(min_length=6, max_length=200)
     roles: list[str]
     employee_id: UUID | None = None
