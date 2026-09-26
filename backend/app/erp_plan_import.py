@@ -684,8 +684,15 @@ def _persist_printed_1c_plan(
     }
 
 
-async def import_yandex_plan() -> dict[str, Any]:
+async def import_yandex_plan(
+    resource_path_override: str | None = None,
+    public_url_override: str | None = None,
+) -> dict[str, Any]:
     public_url, resource_path = configured_plan_source()
+    if public_url_override:
+        public_url = public_url_override
+    if resource_path_override is not None:
+        resource_path = resource_path_override
     client = YandexDiskClient()
     try:
         metadata = await client.metadata(public_url, resource_path)
@@ -924,6 +931,160 @@ async def import_yandex_plan() -> dict[str, Any]:
         "rows_applied": applied,
         "rows_skipped": skipped,
         "rows_error": errors,
+    }
+
+
+def _configured_plan_folder(resource_path: str | None) -> str | None:
+    if not resource_path:
+        return None
+    parent = str(Path(resource_path).parent).replace("\\", "/")
+    if parent in {"", ".", "/"}:
+        return None
+    if not parent.startswith("/"):
+        parent = "/" + parent
+    return parent
+
+
+def _yandex_file_already_imported(
+    file_name: str,
+    modified: str | None,
+    size: int | None,
+) -> bool:
+    if not modified:
+        return False
+
+    with engine.begin() as connection:
+        return bool(
+            connection.execute(
+                text(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM erp_plan_import_batches
+                        WHERE source_system = 'YANDEX_DISK'
+                          AND source_file_name = :file_name
+                          AND source_file_modified = CAST(:modified AS timestamptz)
+                          AND COALESCE(source_file_size, -1) = COALESCE(:size, -1)
+                          AND status IN ('COMPLETED','COMPLETED_WITH_ERRORS')
+                    )
+                    """
+                ),
+                {
+                    "file_name": file_name,
+                    "modified": modified,
+                    "size": size,
+                },
+            ).scalar_one()
+        )
+
+
+async def import_yandex_plan_folder() -> dict[str, Any]:
+    public_url, configured_resource_path = configured_plan_source()
+    folder_path = _configured_plan_folder(configured_resource_path)
+
+    client = YandexDiskClient()
+    try:
+        files: list[dict[str, Any]] = []
+        offset = 0
+
+        while True:
+            items = await client.list_folder(
+                public_url,
+                folder_path,
+                limit=100,
+                offset=offset,
+            )
+            if not items:
+                break
+
+            files.extend(items)
+
+            if len(items) < 100:
+                break
+
+            offset += len(items)
+    finally:
+        await client.close()
+
+    supported_extensions = {".xlsx", ".xlsm", ".xls", ".csv", ".txt"}
+    candidates: list[dict[str, Any]] = []
+    ignored = 0
+
+    for item in files:
+        if item.get("type") != "file":
+            continue
+
+        name = str(item.get("name") or "").strip()
+        if (
+            not name
+            or name.startswith("~$")
+            or name.startswith(".")
+            or Path(name).suffix.lower() not in supported_extensions
+        ):
+            ignored += 1
+            continue
+
+        candidates.append(item)
+
+    imported: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+
+    for item in sorted(
+        candidates,
+        key=lambda value: str(value.get("name") or "").lower(),
+    ):
+        file_name = str(item.get("name") or "")
+        modified = item.get("modified")
+        size = item.get("size")
+
+        if _yandex_file_already_imported(file_name, modified, size):
+            skipped.append(
+                {
+                    "file_name": file_name,
+                    "reason": "UNCHANGED_ALREADY_IMPORTED",
+                }
+            )
+            continue
+
+        file_path = (
+            f"/{file_name}"
+            if not folder_path
+            else f"{folder_path.rstrip('/')}/{file_name}"
+        )
+
+        try:
+            result = await import_yandex_plan(
+                resource_path_override=file_path,
+                public_url_override=public_url,
+            )
+            imported.append(result)
+        except Exception as exc:
+            errors.append(
+                {
+                    "file_name": file_name,
+                    "error": str(exc),
+                }
+            )
+
+    return {
+        "status": "COMPLETED_WITH_ERRORS" if errors else "COMPLETED",
+        "folder_path": folder_path or "/",
+        "files_found": len(candidates),
+        "files_imported": len(imported),
+        "files_skipped": len(skipped),
+        "files_error": len(errors),
+        "files_ignored": ignored,
+        "results": imported,
+        "skipped": skipped,
+        "errors": errors,
+        "message": (
+            "Папка ERP обработана: "
+            f"найдено {len(candidates)}, "
+            f"загружено {len(imported)}, "
+            f"без изменений {len(skipped)}, "
+            f"ошибок {len(errors)}"
+        ),
     }
 
 
