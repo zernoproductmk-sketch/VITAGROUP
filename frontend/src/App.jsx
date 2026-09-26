@@ -530,6 +530,7 @@ export default function App() {
   const [downtime, setDowntime] = useState([]);
   const [recon, setRecon] = useState([]);
   const [shift, setShift] = useState("DAY");
+  const [businessDate, setBusinessDate] = useState(null);
   const [demoMode, setDemoMode] = useState(false);
   const [problemCount, setProblemCount] = useState(0);
 
@@ -562,7 +563,6 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const businessDate = data?.shift?.business_date || null;
     Promise.all([
       api.summary(businessDate, shift),
       api.downtime(businessDate, shift),
@@ -571,20 +571,23 @@ export default function App() {
       setData(a);
       setDowntime(b);
       setRecon(c);
+      if (!businessDate && a?.shift?.business_date) {
+        setBusinessDate(a.shift.business_date);
+      }
     });
-  }, [shift, user?.id]);
+  }, [shift, businessDate, user?.id]);
 
   useEffect(() => {
-    if (!user || !data?.shift?.business_date) return;
+    if (!user || !(businessDate || data?.shift?.business_date)) return;
     const allowed = roles.some(role => ["SHIFT_MASTER","PRODUCTION_MANAGER","ACCOUNTANT_PRODUCTION","ECONOMIST","MANAGEMENT","ADMIN"].includes(role));
     if (!allowed) {
       setProblemCount(0);
       return;
     }
-    api.problemCenter(data.shift.business_date, shift).then(result => {
+    api.problemCenter(businessDate || data.shift.business_date, shift).then(result => {
       setProblemCount(result?.summary?.critical || 0);
     });
-  }, [user?.id, data?.shift?.business_date, shift, roles.join("|")]);
+  }, [user?.id, businessDate, data?.shift?.business_date, shift, roles.join("|")]);
 
   const logout = () => {
     api.setDemoMode(false);
@@ -592,6 +595,7 @@ export default function App() {
     setUser(null);
     setDemoMode(false);
     setData(null);
+    setBusinessDate(null);
   };
 
   if (user === undefined) return <div className="loading">Проверка сессии…</div>;
@@ -632,6 +636,7 @@ export default function App() {
   const canEditReconciliation = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ACCOUNTANT_PRODUCTION") || roles.includes("ADMIN");
   const canCloseShift = roles.includes("SHIFT_MASTER") || roles.includes("PRODUCTION_MANAGER") || roles.includes("ADMIN");
   const canVerifyShift = roles.includes("PRODUCTION_MANAGER") || roles.includes("ADMIN");
+  const activeBusinessDate = businessDate || data?.shift?.business_date || "";
 
   return <div className="app">
     <aside>
@@ -654,42 +659,50 @@ export default function App() {
             <button className={shift==="DAY" ? "active" : ""} onClick={() => setShift("DAY")}>ДЕНЬ</button>
             <button className={shift==="NIGHT" ? "active" : ""} onClick={() => setShift("NIGHT")}>НОЧЬ</button>
           </div>}
-          <div className="date-box"><b>{data?.shift?.business_date || "—"}</b><span>{section === "integrations" ? "Администрирование" : section === "users" ? "Управление доступом" : section === "launch-readiness" ? "Контроль подготовки" : section === "erp-plan" ? "План 1С / ERP" : data?.shift?.time || (shift==="DAY" ? "09:00–21:00" : "21:00–09:00")}</span></div>
+          <label className="date-box date-picker-box">
+            <span>Дата смены</span>
+            <input
+              type="date"
+              value={activeBusinessDate}
+              onChange={e=>setBusinessDate(e.target.value)}
+              disabled={["integrations","users","launch-readiness","erp-plan","reasons","norms"].includes(section)}
+            />
+          </label>
         </div>
       </header>
       <div className="content">
         {section === "dashboard" && <Dashboard data={data} />}
-        {section === "shift-master" && <ShiftMasterDashboard businessDate={data?.shift?.business_date} shiftCode={shift} canClose={canCloseShift} onOpenControl={() => setSection("shift-control")} />}
+        {section === "shift-master" && <ShiftMasterDashboard businessDate={activeBusinessDate} shiftCode={shift} canClose={canCloseShift} onOpenControl={() => setSection("shift-control")} />}
         {section === "production-manager" && <ProductionManagerDashboard
-          businessDate={data?.shift?.business_date}
+          businessDate={activeBusinessDate}
           canVerify={canVerifyShift}
           onOpenMaster={(shiftCode)=>{setShift(shiftCode);setSection("shift-master");}}
           onOpenControl={(shiftCode)=>{setShift(shiftCode);setSection("shift-control");}}
         />}
         {section === "management" && <ManagementDashboard
-          businessDate={data?.shift?.business_date}
+          businessDate={activeBusinessDate}
           onOpenProductionManager={()=>setSection("production-manager")}
           onOpenControl={()=>setSection("shift-control")}
         />}
         {section === "problems" && <ProblemCenter
-          businessDate={data?.shift?.business_date}
+          businessDate={activeBusinessDate}
           shiftCode={shift}
           onNavigate={(item)=>{
             if (item.shift_code) setShift(item.shift_code);
             setSection(item.target_section || "problems");
           }}
         />}
-        {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={data?.shift?.business_date} shiftCode={shift} />}
-        {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={data?.shift?.business_date} shiftCode={shift} />}
-        {section === "warehouse-workspace" && <RoleWorkspace kind="warehouse" businessDate={data?.shift?.business_date} shiftCode={shift} />}
-        {section === "accountant-workspace" && <RoleWorkspace kind="accountant" businessDate={data?.shift?.business_date} shiftCode={shift} />}
+        {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={activeBusinessDate} shiftCode={shift} />}
+        {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={activeBusinessDate} shiftCode={shift} />}
+        {section === "warehouse-workspace" && <RoleWorkspace kind="warehouse" businessDate={activeBusinessDate} shiftCode={shift} />}
+        {section === "accountant-workspace" && <RoleWorkspace kind="accountant" businessDate={activeBusinessDate} shiftCode={shift} />}
         {section === "production" && <Dashboard data={data} />}
         {section === "erp-plan" && <ERPPlan />}
-        {section === "oee-detail" && <OEEPage businessDate={data?.shift?.business_date} shiftCode={shift} />}
+        {section === "oee-detail" && <OEEPage businessDate={activeBusinessDate} shiftCode={shift} />}
         {section === "downtime" && <Downtime rows={downtime} />}
         {section === "quality" && <Reconciliation rows={recon} />}
         {section === "reconciliation" && <Reconciliation rows={recon} />}
-        {section === "shift-control" && <ReconciliationControl businessDate={data?.shift?.business_date} shiftCode={shift} canEdit={canEditReconciliation} />}
+        {section === "shift-control" && <ReconciliationControl businessDate={activeBusinessDate} shiftCode={shift} canEdit={canEditReconciliation} />}
         {section === "payroll" && <PayrollPage readOnly={!canEditPayroll} />}
         {section === "integrations" && <Integrations />}
         {section === "users" && <UserAdminPage />}
