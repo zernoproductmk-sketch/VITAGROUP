@@ -571,19 +571,36 @@ function AccountantForm({ selectedRun, onRefresh }) {
 function ComparePanel({ kind, run }) {
   if (!run) return <section className="card panel"><div className="empty-state">Выберите задание.</div></section>;
 
+  const operatorDefect = Number(run.operator_defect_qty || 0);
+  const qcDefect = Number(run.qc_defect_qty || 0);
+  const qcExtra = Math.max(qcDefect - operatorDefect, 0);
+  const afterQc = Math.max(Number(run.output_qty || 0) - qcExtra, 0);
+
   const rows = kind === "qc"
-    ? [["Оператор — брак", run.operator_defect_qty], ["ОТК — подтверждено", run.qc_defect_qty], ["Расхождение", run.qc_defect_qty-run.operator_defect_qty]]
+    ? [["Оператор — брак", operatorDefect], ["ОТК — подтверждено", qcDefect], ["Доп. брак ОТК", qcExtra]]
     : kind === "warehouse"
-      ? [["Выпуск оператора", run.output_qty], ["После ОТК", Math.max(run.output_qty-run.qc_defect_qty,0)], ["Принято на склад", run.warehouse_qty], ["Расхождение", Math.max(run.output_qty-run.qc_defect_qty,0)-run.warehouse_qty]]
+      ? [["Выпуск оператора", run.output_qty], ["После ОТК", afterQc], ["Принято на склад", run.warehouse_qty], ["Расхождение", afterQc-run.warehouse_qty]]
       : kind === "accountant"
-        ? [["Оператор", run.output_qty], ["ОТК — годное", Math.max(run.output_qty-run.qc_defect_qty,0)], ["Учетчик", run.accounting_qty], ["Склад", run.warehouse_qty]]
-        : [["План", run.planned_qty], ["Выпуск", run.output_qty], ["Брак оператора", run.operator_defect_qty], ["Брак ОТК", run.qc_defect_qty]];
+        ? [["Оператор", run.output_qty], ["После ОТК", afterQc], ["Учетчик", run.accounting_qty], ["Склад", run.warehouse_qty]]
+        : [["План", run.planned_qty], ["Выпуск", run.output_qty], ["Брак оператора", operatorDefect], ["Брак ОТК", qcDefect]];
+
+  let qcNote = "";
+  if(kind === "qc" && qcDefect > 0){
+    if(qcDefect === operatorDefect){
+      qcNote = `ОТК подтвердило ${nf.format(qcDefect)} шт брака оператора. Выпуск не изменяется.`;
+    }else if(qcDefect > operatorDefect){
+      qcNote = `ОТК выявило дополнительно ${nf.format(qcExtra)} шт брака. Выпуск корректируется с ${nf.format(run.output_qty || 0)} до ${nf.format(afterQc)} шт.`;
+    }else{
+      qcNote = `ОТК подтвердило ${nf.format(qcDefect)} из ${nf.format(operatorDefect)} шт брака оператора. Выпуск автоматически не увеличивается.`;
+    }
+  }
 
   return <section className="card panel">
     <div className="panel-head"><h2>Сверка данных</h2><span>на текущий момент</span></div>
     <div className="workspace-compare">
       {rows.map(([label,value])=><div key={label}><span>{label}</span><b>{nf.format(value || 0)}</b></div>)}
     </div>
+    {qcNote && <div className="notice qc-confirmation-note">{qcNote}</div>}
   </section>;
 }
 
