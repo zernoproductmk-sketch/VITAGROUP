@@ -2,7 +2,7 @@ from ipaddress import ip_address
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from .auth import (
     CurrentUser,
@@ -26,7 +26,7 @@ def _safe_ip(value: str | None) -> str | None:
 
 
 class LoginInput(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=1, max_length=200)
     password: str
 
 
