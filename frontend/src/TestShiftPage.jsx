@@ -6,6 +6,7 @@ const isoToday = () => new Date().toISOString().slice(0,10);
 function RunSetup({ run, employees, onSaved }) {
   const [selected,setSelected]=useState(run.staff?.map(item=>item.employee_id)||[]);
   const [notice,setNotice]=useState("");
+  const [staffQuery,setStaffQuery]=useState("");
 
   useEffect(()=>{
     setSelected(run.staff?.map(item=>item.employee_id)||[]);
@@ -28,6 +29,24 @@ function RunSetup({ run, employees, onSaved }) {
     );
   };
 
+  const filteredEmployees=useMemo(()=>{
+    const query=staffQuery.trim().toLocaleLowerCase("ru");
+    if(!query) return employees;
+
+    return employees.filter(employee=>{
+      const haystack=[
+        employee.full_name,
+        employee.personnel_number,
+        employee.position_name
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("ru");
+
+      return haystack.includes(query);
+    });
+  },[employees,staffQuery]);
+
   return <article className={`test-run-card ${run.ready?"ready":"blocked"}`}>
     <div className="test-run-head">
       <div>
@@ -48,11 +67,26 @@ function RunSetup({ run, employees, onSaved }) {
       <div><span>Сотрудников</span><b>{run.staff?.length||0}</b></div>
     </div>
 
+    <div className="test-staff-search">
+      <input
+        className="form-control"
+        type="search"
+        value={staffQuery}
+        onChange={e=>setStaffQuery(e.target.value)}
+        placeholder="Поиск по ФИО, табельному номеру или должности"
+      />
+      <small>
+        Найдено {filteredEmployees.length} из {employees.length}
+        {selected.length ? ` · выбрано: ${selected.length}` : ""}
+      </small>
+    </div>
+
     <div className="test-staff-picker">
-      {employees.map(employee=><label key={employee.id}>
+      {filteredEmployees.map(employee=><label key={employee.id}>
         <input type="checkbox" checked={selected.includes(employee.id)} onChange={()=>toggle(employee.id)}/>
         <span><b>{employee.full_name}</b><small>{employee.position_name||"Без должности"} · {employee.personnel_number}</small></span>
       </label>)}
+      {filteredEmployees.length===0&&<div className="empty-state">Сотрудники по запросу не найдены</div>}
     </div>
 
     <button className="btn secondary test-save" disabled={selected.length===0} onClick={save}>
