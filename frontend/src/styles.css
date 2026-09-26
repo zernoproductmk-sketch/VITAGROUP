@@ -24,3 +24,15 @@ nav button{display:flex;align-items:center;justify-content:space-between;gap:8px
 .shift-task-work-time{grid-template-columns:repeat(2,1fr)}
 @media(max-width:1000px){.shift-task-ready-goods,.shift-task-defects,.shift-task-work-time{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.shift-task-ready-goods,.shift-task-defects,.shift-task-work-time{grid-template-columns:1fr}}
+
+.late-entry-badge{display:inline-flex;align-items:center;width:max-content;padding:4px 7px;border-radius:999px;background:#fef3f2;color:#b42318;border:1px solid #fecdca;font-size:9px;font-weight:900;letter-spacing:.04em;white-space:nowrap}
+.notice-late-entry{display:flex;gap:9px;align-items:center;background:#fef3f2;color:#b42318;border:1px solid #fecdca}
+.notice-late-entry span{font-size:12px}
+.history-in-shift{font-size:10px;color:#667085}
+.qc-selected-task{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 14px;padding:10px;background:#f8fafc;border:1px solid #d0d5dd;border-radius:8px}
+.qc-selected-task div{display:grid;gap:2px}
+.qc-selected-task span{font-size:9px;color:#667085}
+.qc-selected-task b{font-size:10px;color:#101828;line-height:1.35}
+.qc-selected-task div:nth-child(4){grid-column:1/-1}
+.workspace-selection-warning{margin:10px 0 14px;padding:10px;border:1px solid #f2c94c;background:#fffbea;border-radius:8px;font-size:10px;color:#7a5d00}
+@media(max-width:700px){.qc-selected-task{grid-template-columns:1fr}.qc-selected-task div:nth-child(4){grid-column:auto}}
