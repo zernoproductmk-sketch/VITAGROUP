@@ -169,6 +169,58 @@ def _route_operations(rows: list[list[Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _materials(rows: list[list[Any]]) -> list[dict[str, Any]]:
+    section_index = _find_section_row(rows, "Материалы")
+    if section_index is None:
+        return []
+
+    header_index = None
+    columns: dict[str, int] = {}
+    for index in range(section_index + 1, min(len(rows), section_index + 10)):
+        headers = _header_columns(rows[index])
+        if "Материал" in headers and "Норматив" in headers:
+            header_index = index
+            columns = headers
+            break
+
+    if header_index is None:
+        return []
+
+    result: list[dict[str, Any]] = []
+    for index in range(header_index + 1, len(rows)):
+        row = rows[index]
+        if any(_text(value) == "Выходные изделия" for value in row):
+            break
+
+        name_col = columns.get("Материал")
+        if name_col is None or name_col >= len(row):
+            continue
+
+        name = row[name_col]
+        if name in (None, ""):
+            continue
+
+        def value_for(label: str):
+            col = columns.get(label)
+            return row[col] if col is not None and col < len(row) else None
+
+        result.append(
+            {
+                "source_row": index + 1,
+                "article": _text(value_for("Артикул")) or None,
+                "name": _text(name) or None,
+                "warehouse": _text(value_for("Склад")) or None,
+                "unit": _text(value_for("Ед. изм.")) or None,
+                "normative": _decimal(value_for("Норматив")),
+                "received": _decimal(value_for("Получено")),
+                "consumed": _decimal(value_for("Расход")),
+                "returned": _decimal(value_for("Возвращено")),
+            }
+        )
+
+    return result
+
+
 def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
     if not detect_printed_1c_form(rows):
         raise ValueError("Not a printed 1C production task form")
@@ -201,6 +253,7 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
     plan_qty_header = _decimal(plan_qty_header)
 
     operations = _route_operations(rows)
+    materials = _materials(rows)
 
     output_index = _find_section_row(rows, "Выходные изделия")
     outputs: list[dict[str, Any]] = []
@@ -326,6 +379,7 @@ def parse_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
         "specification": _text(specification) or None,
         "plan_qty_header": plan_qty_header,
         "operations": operations,
+        "materials": materials,
         "outputs": outputs,
     }
 
@@ -363,5 +417,15 @@ def inspect_printed_1c_form(rows: list[list[Any]]) -> dict[str, Any]:
                 "norm_hours": str(item["norm_hours"]) if item.get("norm_hours") is not None else None,
             }
             for item in parsed["operations"]
+        ],
+        "materials": [
+            {
+                **item,
+                "normative": str(item["normative"]) if item.get("normative") is not None else None,
+                "received": str(item["received"]) if item.get("received") is not None else None,
+                "consumed": str(item["consumed"]) if item.get("consumed") is not None else None,
+                "returned": str(item["returned"]) if item.get("returned") is not None else None,
+            }
+            for item in parsed["materials"]
         ],
     }
