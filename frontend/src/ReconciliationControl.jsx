@@ -51,13 +51,13 @@ function CaseModal({ row, reasons, canEdit, onClose, onSaved }) {
       <div className="modal-head">
         <div>
           <small>{row.equipment_code} · {row.order_no || "без заказа"}</small>
-          <h2>Разбор расхождения</h2>
+          <h2>{row.severity === "OK" ? "Карточка производственного запуска" : "Разбор расхождения"}</h2>
         </div>
         <button className="modal-close" onClick={onClose}>×</button>
       </div>
 
       <div className="event-summary">
-        <div><span>Участок цепочки</span><b>{issueLabels[row.primary_issue] || "—"}</b></div>
+        <div><span>Участок цепочки</span><b>{issueLabels[row.primary_issue] || "Расхождений нет"}</b></div>
         <div><span>Артикул</span><b>{row.product_article}</b></div>
         <div><span>Продукция</span><b>{row.product_name}</b></div>
       </div>
@@ -150,7 +150,12 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => <tr key={row.production_run_id} className={row.severity === "CRITICAL" ? "critical-row" : ""}>
+            {rows.map(row => <tr
+              key={row.production_run_id}
+              className={`reconciliation-clickable-row ${row.severity === "CRITICAL" ? "critical-row" : ""}`}
+              onClick={() => setSelected(row)}
+              title="Открыть карточку запуска"
+            >
               <td><b>{row.equipment_code}</b></td>
               <td>{row.order_no || "—"}</td>
               <td><b>{row.product_article}</b><small>{row.product_name}</small></td>
@@ -165,7 +170,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
                 <SeverityBadge value={row.severity} />
                 {row.case?.status && <small>{row.case.status}</small>}
               </td>
-              <td><button className="btn secondary" onClick={() => setSelected(row)}>{row.case ? "Открыть" : "Разобрать"}</button></td>
+              <td><button className="btn secondary" onClick={e => { e.stopPropagation(); setSelected(row); }}>Подробнее</button></td>
             </tr>)}
             {rows.length === 0 && <tr><td colSpan="12"><div className="empty-state">Расхождений по выбранной смене нет.</div></td></tr>}
           </tbody>
