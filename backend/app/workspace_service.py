@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -101,6 +103,16 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
                     p.article AS product_article,
                     p.name AS product_name,
                     po.order_no,
+                    eps.task_id AS erp_task_id,
+                    eps.customer AS erp_customer,
+                    eps.tech_card AS erp_tech_card,
+                    eps.plan_kg AS erp_plan_kg,
+                    eps.pcs_per_box AS erp_pcs_per_box,
+                    eps.boxes_per_pallet AS erp_boxes_per_pallet,
+                    eps.norm_hours AS erp_norm_hours,
+                    eps.raw_data AS erp_raw_data,
+                    pr.shift_assignment_report,
+                    pr.shift_assignment_report_updated_at,
                     COALESCE(outp.output_qty, 0) AS output_qty,
                     COALESCE(defs.operator_defect_qty, 0) AS operator_defect_qty,
                     COALESCE(defs.qc_defect_qty, 0) AS qc_defect_qty,
@@ -112,6 +124,21 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
                 JOIN equipment e ON e.id = pr.equipment_id
                 JOIN products p ON p.id = pr.product_id
                 LEFT JOIN production_orders po ON po.id = pr.production_order_id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        task_id,
+                        customer,
+                        tech_card,
+                        plan_kg,
+                        pcs_per_box,
+                        boxes_per_pallet,
+                        norm_hours,
+                        raw_data
+                    FROM erp_plan_staging eps0
+                    WHERE eps0.production_run_id = pr.id
+                    ORDER BY eps0.updated_at DESC, eps0.created_at DESC
+                    LIMIT 1
+                ) eps ON true
                 LEFT JOIN LATERAL (
                     SELECT
                         CASE
@@ -380,6 +407,15 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
                 "qc_defect_qty": _num(r["qc_defect_qty"]),
                 "warehouse_qty": _num(r["warehouse_qty"]),
                 "accounting_qty": _num(r["accounting_qty"]),
+                "erp_plan_kg": _num(r["erp_plan_kg"]),
+                "erp_pcs_per_box": _num(r["erp_pcs_per_box"]),
+                "erp_boxes_per_pallet": _num(r["erp_boxes_per_pallet"]),
+                "erp_norm_hours": _num(r["erp_norm_hours"]),
+                "shift_assignment_report": r["shift_assignment_report"] or {},
+                "shift_assignment_report_updated_at": (
+                    r["shift_assignment_report_updated_at"].isoformat()
+                    if r["shift_assignment_report_updated_at"] else None
+                ),
             }
             for r in runs
         ],
@@ -834,3 +870,55 @@ def record_operator_defect(user, run_id, quantity, reason_id, occurred_at, comme
         ).scalar_one()
 
     return {"status": "ok", "event_id": str(event_id), "occurred_at": event_at.isoformat()}
+
+
+def save_shift_assignment_report(user, run_id, report: dict) -> dict:
+    with engine.begin() as connection:
+        run = _load_run(connection, run_id)
+
+        connection.execute(
+            text("""
+                UPDATE production_runs
+                SET shift_assignment_report = CAST(:report AS jsonb),
+                    shift_assignment_report_updated_at = now(),
+                    shift_assignment_report_updated_by = :user_id,
+                    updated_at = now()
+                WHERE id = :run_id
+            """),
+            {
+                "run_id": run_id,
+                "report": json.dumps(report or {}, ensure_ascii=False, default=str),
+                "user_id": UUID(user["id"]),
+            },
+        )
+
+        connection.execute(
+            text("""
+                INSERT INTO audit_log (
+                    table_name,
+                    record_id,
+                    action,
+                    changed_by_user_id,
+                    new_data,
+                    reason
+                ) VALUES (
+                    'production_runs',
+                    :run_id,
+                    'UPDATE',
+                    :user_id,
+                    CAST(:report AS jsonb),
+                    'Сохранение интерактивного сменного задания учетчика'
+                )
+            """),
+            {
+                "run_id": run_id,
+                "user_id": UUID(user["id"]),
+                "report": json.dumps(report or {}, ensure_ascii=False, default=str),
+            },
+        )
+
+    return {
+        "status": "ok",
+        "production_run_id": str(run["id"]),
+        "report": report or {},
+    }
