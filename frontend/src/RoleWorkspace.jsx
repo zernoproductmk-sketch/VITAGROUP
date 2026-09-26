@@ -349,17 +349,27 @@ function ShiftAssignmentForm({ context, selectedRun, onRefresh }) {
             <div><span>Фасовка, шт/упак.</span><b>{selectedRun.erp_pcs_per_box ? nf.format(selectedRun.erp_pcs_per_box) : "—"}</b></div>
           </div>
 
-          <div className="shift-task-report-title">Отчет по заданию — заполняет учетчик</div>
-          <div className="shift-task-input-grid">
+          <div className="shift-task-report-title">Отчет по заданию — заполняет оператор</div>
+
+          <div className="shift-task-subsection-title">Готовая продукция</div>
+          <div className="shift-task-input-grid shift-task-ready-goods">
             <label><span>По счетчику, шт</span>{input("counter_qty","0","number")}</label>
-            <label><span>Брак, шт</span>{input("defect_qty","0","number")}</label>
-            <label><span>Брак, кг (тех. отходы)</span>{input("defect_kg","0","number")}</label>
-            <label><span>Начало работы</span>{input("work_start","","time")}</label>
-            <label><span>Конец работы</span>{input("work_end","","time")}</label>
-            <label><span>Брак ОТК, шт</span>{input("qc_defect_qty","0","number")}</label>
-            <label><span>Фактически, шт</span>{input("actual_qty","0","number")}</label>
+            <label><span>Факт, шт</span>{input("actual_qty","0","number")}</label>
             <label><span>Факт, коробов</span>{input("actual_boxes","0","number")}</label>
             <label><span>Факт, паллет</span>{input("actual_pallets","0","number")}</label>
+          </div>
+
+          <div className="shift-task-subsection-title">Брак</div>
+          <div className="shift-task-input-grid shift-task-defects">
+            <label><span>Брак, шт</span>{input("defect_qty","0","number")}</label>
+            <label><span>Брак, кг (тех. отходы)</span>{input("defect_kg","0","number")}</label>
+            <label><span>Брак ОТК, шт</span>{input("qc_defect_qty","0","number")}</label>
+          </div>
+
+          <div className="shift-task-subsection-title">Время работы</div>
+          <div className="shift-task-input-grid shift-task-work-time">
+            <label><span>Начало работы</span>{input("work_start","","time")}</label>
+            <label><span>Конец работы</span>{input("work_end","","time")}</label>
           </div>
 
           <label className="shift-task-wide-input">
