@@ -49,6 +49,51 @@ def _primary_issue(row: dict) -> str | None:
     return None
 
 
+
+def _current_stage(row: dict) -> tuple[str, str]:
+    if not row["operator_entered"]:
+        return "OPERATOR", "Ожидается выпуск оператора"
+    if not row["qc_entered"]:
+        return "QC", "Ожидается проверка ОТК"
+    if not row["accountant_entered"]:
+        return "ACCOUNTANT", "Ожидается учет готовой продукции"
+    if not row["warehouse_entered"]:
+        return "WAREHOUSE", "Ожидается приемка складом"
+    if not row["erp_entered"]:
+        return "ERP", "Ожидается факт 1С:ERP"
+    return "COMPLETE", "Цепочка завершена"
+
+
+def _stage_severity(row: dict) -> str:
+    checks = []
+    if row["qc_entered"]:
+        checks.append(_severity(row["delta_operator_qc"], row["operator_qty"]))
+    if row["accountant_entered"]:
+        checks.append(_severity(row["delta_qc_accountant"], row["qc_good_qty"]))
+    if row["warehouse_entered"]:
+        checks.append(_severity(row["delta_accountant_warehouse"], row["accounting_qty"]))
+    if row["erp_entered"]:
+        checks.append(_severity(row["delta_warehouse_erp"], row["warehouse_qty"]))
+
+    if "CRITICAL" in checks:
+        return "CRITICAL"
+    if "WARNING" in checks:
+        return "WARNING"
+    return "OK" if row["current_stage"] == "COMPLETE" else "PENDING"
+
+
+def _stage_issue(row: dict) -> str | None:
+    checks = [
+        ("OPERATOR_QC", "qc_entered", row["delta_operator_qc"]),
+        ("QC_ACCOUNTANT", "accountant_entered", row["delta_qc_accountant"]),
+        ("ACCOUNTANT_WAREHOUSE", "warehouse_entered", row["delta_accountant_warehouse"]),
+        ("WAREHOUSE_ERP", "erp_entered", row["delta_warehouse_erp"]),
+    ]
+    for code, flag, delta in checks:
+        if row[flag] and abs(delta) > 0.0001:
+            return code
+    return None
+
 def shift_reconciliation(
     business_date: date | None,
     shift_code: str | None,
@@ -61,6 +106,7 @@ def shift_reconciliation(
                 "ok": 0,
                 "warning": 0,
                 "critical": 0,
+                "pending": 0,
                 "open_cases": 0,
             },
             "rows": [],
@@ -86,6 +132,51 @@ def shift_reconciliation(
         accounting = {
             str(row["production_run_id"]): _float(row["accounting_qty"])
             for row in accounting_rows
+        }
+
+        stage_rows = connection.execute(
+            text(
+                """
+                SELECT
+                    pr.id AS production_run_id,
+                    EXISTS (
+                        SELECT 1 FROM production_output_events poe
+                        WHERE poe.production_run_id = pr.id
+                          AND poe.status <> 'REJECTED'
+                    ) AS operator_entered,
+                    (
+                        EXISTS (
+                            SELECT 1 FROM qc_inspections qi
+                            WHERE qi.production_run_id = pr.id
+                        )
+                        OR EXISTS (
+                            SELECT 1 FROM defect_events de
+                            WHERE de.production_run_id = pr.id
+                              AND de.reported_by = 'QC'
+                              AND de.is_confirmed = true
+                        )
+                    ) AS qc_entered,
+                    EXISTS (
+                        SELECT 1 FROM accounting_control_events ace
+                        WHERE ace.production_run_id = pr.id
+                    ) AS accountant_entered,
+                    EXISTS (
+                        SELECT 1 FROM warehouse_receipts wr
+                        WHERE wr.production_run_id = pr.id
+                    ) AS warehouse_entered,
+                    EXISTS (
+                        SELECT 1 FROM erp_production_facts epf
+                        WHERE epf.production_run_id = pr.id
+                    ) AS erp_entered
+                FROM production_runs pr
+                WHERE pr.id = ANY(:run_ids)
+                """
+            ),
+            {"run_ids": run_ids},
+        ).mappings().all()
+        stages = {
+            str(row["production_run_id"]): dict(row)
+            for row in stage_rows
         }
 
         case_rows = connection.execute(
@@ -115,7 +206,7 @@ def shift_reconciliation(
         }
 
     result = []
-    counters = {"ok": 0, "warning": 0, "critical": 0}
+    counters = {"ok": 0, "warning": 0, "critical": 0, "pending": 0}
 
     for run in runs:
         operator = _float(run["output_qty"])
@@ -124,6 +215,7 @@ def shift_reconciliation(
         warehouse = _float(run["warehouse_qty"])
         erp = _float(run["erp_qty"])
         plan = _float(run["planned_qty"])
+        flags = stages.get(run["id"], {})
 
         row = {
             "production_run_id": run["id"],
@@ -146,22 +238,16 @@ def shift_reconciliation(
             "delta_accountant_warehouse": accountant - warehouse,
             "delta_warehouse_erp": warehouse - erp,
             "case": cases.get(run["id"]),
+            "operator_entered": bool(flags.get("operator_entered")),
+            "qc_entered": bool(flags.get("qc_entered")),
+            "accountant_entered": bool(flags.get("accountant_entered")),
+            "warehouse_entered": bool(flags.get("warehouse_entered")),
+            "erp_entered": bool(flags.get("erp_entered")),
         }
 
-        severities = [
-            _severity(row["delta_operator_qc"], operator),
-            _severity(row["delta_qc_accountant"], qc_good),
-            _severity(row["delta_accountant_warehouse"], accountant),
-            _severity(row["delta_warehouse_erp"], warehouse),
-        ]
-        if "CRITICAL" in severities:
-            row["severity"] = "CRITICAL"
-        elif "WARNING" in severities:
-            row["severity"] = "WARNING"
-        else:
-            row["severity"] = "OK"
-
-        row["primary_issue"] = _primary_issue(row)
+        row["current_stage"], row["stage_label"] = _current_stage(row)
+        row["severity"] = _stage_severity(row)
+        row["primary_issue"] = _stage_issue(row)
         counters[row["severity"].lower()] += 1
         result.append(row)
 
