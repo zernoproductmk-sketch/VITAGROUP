@@ -11,9 +11,19 @@ const issueLabels = {
   WAREHOUSE_ERP: "Склад → ERP"
 };
 
+const stageLabels = {
+  OPERATOR: "Оператор",
+  QC: "ОТК",
+  ACCOUNTANT: "Учетчик",
+  WAREHOUSE: "Склад",
+  ERP: "ERP",
+  COMPLETE: "Завершено"
+};
+
 function SeverityBadge({ value }) {
   const map = {
     OK: ["success", "СХОДИТСЯ"],
+    PENDING: ["neutral", "В РАБОТЕ"],
     WARNING: ["warning", "ОТКЛОНЕНИЕ"],
     CRITICAL: ["danger", "КРИТИЧНО"]
   };
@@ -57,7 +67,8 @@ function CaseModal({ row, reasons, canEdit, onClose, onSaved }) {
       </div>
 
       <div className="event-summary">
-        <div><span>Участок цепочки</span><b>{issueLabels[row.primary_issue] || "Расхождений нет"}</b></div>
+        <div><span>Текущий этап</span><b>{row.stage_label || stageLabels[row.current_stage] || "—"}</b></div>
+        <div><span>Участок расхождения</span><b>{issueLabels[row.primary_issue] || "Расхождений нет"}</b></div>
         <div><span>Артикул</span><b>{row.product_article}</b></div>
         <div><span>Продукция</span><b>{row.product_name}</b></div>
       </div>
@@ -115,7 +126,9 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
 
   const rows = useMemo(() => {
     if (!data) return [];
-    return problemOnly ? data.rows.filter(row => row.severity !== "OK") : data.rows;
+    return problemOnly
+      ? data.rows.filter(row => row.severity === "WARNING" || row.severity === "CRITICAL")
+      : data.rows;
   }, [data, problemOnly]);
 
   if (!data) return <div className="card panel">Загрузка сверки смены…</div>;
@@ -137,6 +150,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
       <div className="card mini-kpi"><span>Сходится</span><b>{data.summary.ok}</b></div>
       <div className="card mini-kpi"><span>Отклонения</span><b>{data.summary.warning}</b></div>
       <div className="card mini-kpi"><span>Критично</span><b>{data.summary.critical}</b></div>
+      <div className="card mini-kpi"><span>В работе</span><b>{data.summary.pending || 0}</b></div>
       <div className="card mini-kpi"><span>Открытых кейсов</span><b>{data.summary.open_cases}</b></div>
     </div>
 
@@ -146,7 +160,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
         <table className="reconciliation-control-table">
           <thead>
             <tr>
-              <th>Линия</th><th>Заказ</th><th>Артикул</th><th>План</th><th>Оператор</th><th>ОТК</th><th>Учетчик</th><th>Склад</th><th>ERP</th><th>Проблемный участок</th><th>Статус</th><th></th>
+              <th>Линия</th><th>Заказ</th><th>Артикул</th><th>План</th><th>Оператор</th><th>ОТК</th><th>Учетчик</th><th>Склад</th><th>ERP</th><th>Текущий этап</th><th>Проблемный участок</th><th>Статус</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -165,6 +179,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
               <td>{nf.format(row.accounting_qty)}</td>
               <td>{nf.format(row.warehouse_qty)}</td>
               <td>{nf.format(row.erp_qty)}</td>
+              <td><b>{stageLabels[row.current_stage] || "—"}</b><small>{row.stage_label}</small></td>
               <td>{issueLabels[row.primary_issue] || "—"}</td>
               <td>
                 <SeverityBadge value={row.severity} />
@@ -172,7 +187,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
               </td>
               <td><button className="btn secondary" onClick={e => { e.stopPropagation(); setSelected(row); }}>Подробнее</button></td>
             </tr>)}
-            {rows.length === 0 && <tr><td colSpan="12"><div className="empty-state">Расхождений по выбранной смене нет.</div></td></tr>}
+            {rows.length === 0 && <tr><td colSpan="13"><div className="empty-state">Расхождений по выбранной смене нет.</div></td></tr>}
           </tbody>
         </table>
       </div>
