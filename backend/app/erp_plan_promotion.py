@@ -63,6 +63,100 @@ def _resolve_product(connection, article):
     ).scalar_one_or_none()
 
 
+def _ensure_erp_product(connection, article, name):
+    if not article:
+        return None
+
+    article = str(article).strip()
+    product_name = str(name or article).strip() or article
+
+    product_id = connection.execute(
+        text(
+            """
+            INSERT INTO products (
+                code, article, name, unit, is_active
+            ) VALUES (
+                :article, :article, :name, 'pcs', true
+            )
+            ON CONFLICT (code)
+            DO UPDATE SET
+                article = COALESCE(products.article, EXCLUDED.article),
+                name = CASE
+                    WHEN products.name IS NULL OR btrim(products.name) = ''
+                    THEN EXCLUDED.name
+                    ELSE products.name
+                END,
+                is_active = true,
+                updated_at = now()
+            RETURNING id
+            """
+        ),
+        {"article": article, "name": product_name},
+    ).scalar_one()
+
+    connection.execute(
+        text(
+            """
+            INSERT INTO product_external_codes (
+                product_id,
+                source_system,
+                code_type,
+                external_code,
+                is_primary,
+                metadata
+            ) VALUES (
+                :product_id,
+                'ERP',
+                'ARTICLE',
+                :article,
+                true,
+                '{"source":"erp_plan_auto"}'::jsonb
+            )
+            ON CONFLICT (source_system, code_type, external_code)
+            DO UPDATE SET
+                product_id = EXCLUDED.product_id,
+                is_primary = true,
+                is_active = true,
+                updated_at = now()
+            """
+        ),
+        {"product_id": product_id, "article": article},
+    )
+
+    connection.execute(
+        text(
+            """
+            INSERT INTO external_reference_aliases (
+                source_system,
+                entity_type,
+                external_code,
+                entity_id,
+                canonical_label
+            ) VALUES (
+                'ERP',
+                'PRODUCT',
+                :article,
+                :product_id,
+                :label
+            )
+            ON CONFLICT (source_system, entity_type, external_code)
+            DO UPDATE SET
+                entity_id = EXCLUDED.entity_id,
+                canonical_label = EXCLUDED.canonical_label,
+                is_active = true,
+                updated_at = now()
+            """
+        ),
+        {
+            "article": article,
+            "product_id": product_id,
+            "label": product_name,
+        },
+    )
+
+    return product_id
+
+
 def _equipment_code_variants(*codes):
     result = []
     seen = set()
@@ -385,6 +479,16 @@ def promote_erp_plan(limit: int = 1000) -> dict:
                     connection,
                     row.get("article"),
                 )
+                if (
+                    not product_id
+                    and row.get("article")
+                    and row.get("product_name")
+                ):
+                    product_id = _ensure_erp_product(
+                        connection,
+                        row.get("article"),
+                        row.get("product_name"),
+                    )
                 equipment_id = row.get("equipment_id") or _resolve_equipment(
                     connection,
                     row.get("equipment_code"),
