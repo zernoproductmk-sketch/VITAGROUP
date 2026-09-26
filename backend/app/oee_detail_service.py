@@ -209,8 +209,8 @@ def oee_run_detail(run_id: UUID) -> dict | None:
             "unit": "мин",
         },
         "performance": {
-            "formula": "Actual Output / (Ideal Rate × Run Time)",
-            "numerator": metrics["output_qty"],
+            "formula": "Total Count / (Ideal Rate × Run Time)",
+            "numerator": metrics["total_count_qty"],
             "denominator": metrics["theoretical_qty"],
             "result": metrics["performance"],
             "unit": "шт",
@@ -224,6 +224,13 @@ def oee_run_detail(run_id: UUID) -> dict | None:
             "unit": "шт",
             "operator_defect": metrics["operator_defect_qty"],
             "confirmed_qc_defect": metrics["qc_defect_qty"],
+        },
+        "plan_fulfillment": {
+            "formula": "Good Count / Planned Count",
+            "numerator": metrics["good_qty"],
+            "denominator": metrics["planned_qty"],
+            "result": metrics["plan_fulfillment"],
+            "unit": "шт",
         },
         "oee": {
             "formula": "Availability × Performance × Quality",
