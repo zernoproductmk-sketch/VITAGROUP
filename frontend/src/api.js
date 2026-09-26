@@ -153,7 +153,10 @@ async function strictRequest(path, options = {}) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = body?.detail || `HTTP ${response.status}`;
+    const detail = body?.detail;
+    const message = Array.isArray(detail)
+      ? detail.map(item => item?.msg || String(item)).join("; ")
+      : (typeof detail === "string" ? detail : (detail?.msg || `HTTP ${response.status}`));
     const error = new Error(message);
     error.status = response.status;
     throw error;
