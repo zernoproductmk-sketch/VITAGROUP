@@ -47,16 +47,16 @@ function RunCard({ run, selected, onClick }) {
   </button>;
 }
 
-function WorkspaceHeader({ context }) {
+function WorkspaceHeader({ context, runCount, equipmentCode }) {
   return <section className="card workspace-current">
     <div>
       <span className="workspace-eyebrow">Текущая смена</span>
       <h2>{context.shift.label} · {context.shift.time}</h2>
-      <p>{context.shift.business_date}</p>
+      <p>{context.shift.business_date}{equipmentCode ? ` · Линия ${equipmentCode.replace(/^L-/, "")}` : ""}</p>
     </div>
     <div className="workspace-shift-badge">
       <span>Запусков</span>
-      <b>{context.runs.length}</b>
+      <b>{runCount ?? context.runs.length}</b>
     </div>
   </section>;
 }
@@ -647,24 +647,41 @@ function HistoryTable({ rows = [] }) {
   </section>;
 }
 
-export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
+export default function RoleWorkspace({ kind, businessDate, shiftCode, equipmentCode = "" }) {
   const [context, setContext] = useState(null);
   const [selectedRunId, setSelectedRunId] = useState(null);
 
   const refresh = async () => {
     const result = await api.workspaceContext(kind, businessDate, shiftCode);
     setContext(result);
+    const visibleRuns = equipmentCode
+      ? (result.runs || []).filter(run => String(run.equipment_code || "").toUpperCase() === String(equipmentCode).toUpperCase())
+      : (result.runs || []);
     setSelectedRunId(current => {
-      const stillExists = result.runs?.some(run => run.id === current);
-      return stillExists ? current : (result.runs?.[0]?.id || null);
+      const stillExists = visibleRuns.some(run => run.id === current);
+      return stillExists ? current : (visibleRuns[0]?.id || null);
     });
   };
 
-  useEffect(() => { refresh(); }, [kind, businessDate, shiftCode]);
+  useEffect(() => { refresh(); }, [kind, businessDate, shiftCode, equipmentCode]);
+
+  const visibleRuns = useMemo(
+    () => equipmentCode
+      ? (context?.runs || []).filter(run => String(run.equipment_code || "").toUpperCase() === String(equipmentCode).toUpperCase())
+      : (context?.runs || []),
+    [context, equipmentCode]
+  );
+
+  const visibleRecent = useMemo(
+    () => equipmentCode
+      ? (context?.recent || []).filter(row => String(row.equipment_code || "").toUpperCase() === String(equipmentCode).toUpperCase())
+      : (context?.recent || []),
+    [context, equipmentCode]
+  );
 
   const selectedRun = useMemo(
-    () => context?.runs?.find(run => run.id === selectedRunId) || null,
-    [context, selectedRunId]
+    () => visibleRuns.find(run => run.id === selectedRunId) || null,
+    [visibleRuns, selectedRunId]
   );
 
   if (!context) return <div className="card panel">Загрузка рабочего кабинета…</div>;
@@ -673,14 +690,14 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
     <div className="workspace-title">
       <div><h2>{labels[kind].title}</h2><p>{labels[kind].subtitle}</p></div>
     </div>
-    <WorkspaceHeader context={context} />
+    <WorkspaceHeader context={context} runCount={visibleRuns.length} equipmentCode={kind==="operator" ? equipmentCode : ""} />
 
     <div className="workspace-layout">
       <section className="card panel workspace-runs">
-        <div className="panel-head"><h2>Текущие задания</h2><span>{context.runs.length}</span></div>
+        <div className="panel-head"><h2>{equipmentCode && kind==="operator" ? "Все задания линии на смену" : "Текущие задания"}</h2><span>{visibleRuns.length}</span></div>
         <div className="workspace-run-list">
-          {context.runs.map(run=><RunCard key={run.id} run={run} selected={run.id===selectedRunId} onClick={()=>setSelectedRunId(run.id)} />)}
-          {context.runs.length===0 && <div className="empty-state">На выбранную смену производственные запуски пока не созданы.</div>}
+          {visibleRuns.map(run=><RunCard key={run.id} run={run} selected={run.id===selectedRunId} onClick={()=>setSelectedRunId(run.id)} />)}
+          {visibleRuns.length===0 && <div className="empty-state">{equipmentCode && kind==="operator" ? `На линии ${equipmentCode.replace(/^L-/, "")} заданий на выбранную смену нет.` : "На выбранную смену производственные запуски пока не созданы."}</div>}
         </div>
       </section>
 
@@ -696,6 +713,6 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
       </div>
     </div>
 
-    <HistoryTable rows={context.recent || []} />
+    <HistoryTable rows={visibleRecent} />
   </>;
 }
