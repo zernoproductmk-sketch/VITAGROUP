@@ -129,7 +129,7 @@ function Dashboard({ data }) {
         <div className="panel-head"><h2>Контроль цепочки</h2><span className="status warning">ЕСТЬ ОТКЛОНЕНИЯ</span></div>
         <div className="flow">
           <div><b>{formatNumber(p.operator_output)}</b><span>Оператор</span></div><i>→</i>
-          <div><b>{formatNumber(p.operator_output - p.qc_defect)}</b><span>После ОТК</span></div><i>→</i>
+          <div><b>{formatNumber(p.good_product)}</b><span>После ОТК</span></div><i>→</i>
           <div><b>{formatNumber(p.warehouse_received)}</b><span>Склад</span></div><i>→</i>
           <div><b>{formatNumber(p.erp_fact)}</b><span>1С:ERP</span></div>
         </div>
