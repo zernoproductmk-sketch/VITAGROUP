@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from .auth import require_roles
 from .user_admin import (
@@ -25,6 +25,14 @@ class UserCreateInput(BaseModel):
     password: str = Field(min_length=6, max_length=200)
     roles: list[str]
     employee_id: UUID | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_email_as_none(cls, value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
 
 class RolesInput(BaseModel):
