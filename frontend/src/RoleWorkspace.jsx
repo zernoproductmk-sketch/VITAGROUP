@@ -529,16 +529,22 @@ function AccountantForm({ selectedRun, onRefresh }) {
   const [ticket, setTicket] = useState("");
   const [packages, setPackages] = useState("");
   const [perPackage, setPerPackage] = useState("");
+  const [hasPartialPackage, setHasPartialPackage] = useState(false);
+  const [partialPackageQty, setPartialPackageQty] = useState("");
   const [comment, setComment] = useState("");
   const [notice, setNotice] = useState("");
 
-  const total = Number(packages || 0) * Number(perPackage || 0);
+  const fullPackagesQty = Number(packages || 0);
+  const qtyPerPackage = Number(perPackage || 0);
+  const partialQty = hasPartialPackage ? Number(partialPackageQty || 0) : 0;
+  const total = fullPackagesQty * qtyPerPackage + partialQty;
 
   const save = async () => {
     await api.accountantControl({
       production_run_id: selectedRun.id,
-      packages_qty: Number(packages),
-      qty_per_package: Number(perPackage),
+      packages_qty: fullPackagesQty,
+      qty_per_package: qtyPerPackage,
+      partial_package_qty: partialQty,
       observed_at: null,
       ticket_no: ticket || null,
       comment: comment || null,
@@ -547,6 +553,8 @@ function AccountantForm({ selectedRun, onRefresh }) {
     setTicket("");
     setPackages("");
     setPerPackage("");
+    setHasPartialPackage(false);
+    setPartialPackageQty("");
     setComment("");
     setNotice("Запись учетчика сохранена");
     await onRefresh();
@@ -557,17 +565,28 @@ function AccountantForm({ selectedRun, onRefresh }) {
     <label className="form-label">Талон</label>
     <input className="form-control" value={ticket} onChange={e=>setTicket(e.target.value)} />
     <div className="workspace-two-fields">
-      <label><span>Упаковок</span><input className="form-control" type="number" min="0" value={packages} onChange={e=>setPackages(e.target.value)} /></label>
-      <label><span>Шт. в упаковке</span><input className="form-control" type="number" min="0" value={perPackage} onChange={e=>setPerPackage(e.target.value)} /></label>
+      <label><span>Полных коробов</span><input className="form-control" type="number" min="0" step="1" value={packages} onChange={e=>setPackages(e.target.value)} /></label>
+      <label><span>Шт. в полном коробе</span><input className="form-control" type="number" min="1" step="1" value={perPackage} onChange={e=>setPerPackage(e.target.value)} /></label>
     </div>
+    <label className="problem-switch accountant-partial-switch">
+      <input type="checkbox" checked={hasPartialPackage} onChange={e=>{ setHasPartialPackage(e.target.checked); if(!e.target.checked) setPartialPackageQty(""); }} />
+      <span>Есть неполный короб</span>
+    </label>
+    {hasPartialPackage && <label className="form-label">
+      Количество в неполном коробе, шт.
+      <input className="form-control" type="number" min="1" step="1" max={qtyPerPackage > 0 ? Math.max(qtyPerPackage - 1, 1) : undefined} value={partialPackageQty} onChange={e=>setPartialPackageQty(e.target.value)} placeholder="Например, 395" />
+    </label>}
     <div className="workspace-total"><span>Итого, шт.</span><b>{nf.format(total)}</b></div>
+    {qtyPerPackage > 0 && <div className="notice">
+      {nf.format(fullPackagesQty)} полных коробов × {nf.format(qtyPerPackage)} шт.
+      {hasPartialPackage ? " + неполный короб " + nf.format(partialQty) + " шт." : ""}
+    </div>}
     <label className="form-label">Комментарий</label>
     <input className="form-control" value={comment} onChange={e=>setComment(e.target.value)} />
-    <button className="btn primary workspace-save" disabled={!selectedRun || total<=0} onClick={save}>Сохранить запись</button>
+    <button className="btn primary workspace-save" disabled={!selectedRun || total<=0 || qtyPerPackage<=0 || (hasPartialPackage && (partialQty<=0 || partialQty>=qtyPerPackage))} onClick={save}>Сохранить запись</button>
     {notice && <div className="notice">{notice}</div>}
   </section>;
 }
-
 function ComparePanel({ kind, run }) {
   if (!run) return <section className="card panel"><div className="empty-state">Выберите задание.</div></section>;
 
