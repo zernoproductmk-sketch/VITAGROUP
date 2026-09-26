@@ -122,7 +122,7 @@ function Dashboard({ data }) {
           <div><span>ГП</span><b>{formatNumber(p.good_product)}</b></div>
           <div><span>Брак ОТК</span><b>{formatNumber(p.qc_defect)}</b></div>
           <div><span>Принято складом</span><b>{formatNumber(p.warehouse_received)}</b></div>
-          <div><span>ERP</span><b>{formatNumber(p.erp_fact)}</b></div>
+          <div><span>Факт 1С:ERP</span><b>{formatNumber(p.erp_fact)}</b></div>
         </div>
       </section>
       <section className="card panel">
@@ -131,7 +131,7 @@ function Dashboard({ data }) {
           <div><b>{formatNumber(p.operator_output)}</b><span>Оператор</span></div><i>→</i>
           <div><b>{formatNumber(p.good_product)}</b><span>После ОТК</span></div><i>→</i>
           <div><b>{formatNumber(p.warehouse_received)}</b><span>Склад</span></div><i>→</i>
-          <div><b>{formatNumber(p.erp_fact)}</b><span>1С:ERP</span></div>
+          <div><b>{formatNumber(p.erp_fact)}</b><span>Факт 1С:ERP</span></div>
         </div>
       </section>
     </div>
@@ -158,7 +158,7 @@ function Downtime({ rows }) {
 }
 
 function Reconciliation({ rows }) {
-  return <Table title="Сверка Производство → ОТК → Склад → ERP" columns={["Номенклатура","Оператор","После ОТК","Склад","ERP","Отклонение склад/ERP"]} rows={rows.map(r => [r.product,formatNumber(r.operator),formatNumber(r.qc_good),formatNumber(r.warehouse),formatNumber(r.erp),formatNumber(r.warehouse-r.erp)])} />;
+  return <Table title="Сверка Производство → ОТК → Склад → Факт 1С:ERP" columns={["Номенклатура","Оператор","После ОТК","Склад","Факт 1С:ERP","Отклонение склад / Факт 1С:ERP"]} rows={rows.map(r => [r.product,formatNumber(r.operator),formatNumber(r.qc_good),formatNumber(r.warehouse),formatNumber(r.erp),formatNumber(r.warehouse-r.erp)])} />;
 }
 
 function ManualMappingModal({ row, onClose, onSaved }) {
