@@ -533,6 +533,10 @@ export default function App() {
   const [businessDate, setBusinessDate] = useState(null);
   const [demoMode, setDemoMode] = useState(false);
   const [problemCount, setProblemCount] = useState(0);
+  const [tabletLine, setTabletLine] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("vitagroup_tablet_line") || "";
+  });
 
   const allowDemo = typeof window !== "undefined" && window.location.hostname !== "corpvitagroup.ru";
 
@@ -603,10 +607,17 @@ export default function App() {
   if (!user) {
     return <LoginPage
       allowDemo={allowDemo}
+      tabletLine={tabletLine}
+      onTabletLineChange={line => {
+        const value = String(line || "").trim().toUpperCase();
+        setTabletLine(value);
+        if (value) window.localStorage.setItem("vitagroup_tablet_line", value);
+        else window.localStorage.removeItem("vitagroup_tablet_line");
+      }}
       onLogin={current => {
         api.setDemoMode(false);
         setUser(current);
-        setSection(defaultSectionForRoles(current.roles || []));
+        setSection((current.roles || []).includes("OPERATOR") ? "operator-workspace" : defaultSectionForRoles(current.roles || []));
         setDemoMode(false);
       }}
       onDemo={() => {
@@ -627,6 +638,24 @@ export default function App() {
 
   if (user.must_change_password && !demoMode) {
     return <PasswordChangeScreen user={user} onChanged={setUser} onLogout={logout} />;
+  }
+
+  const operatorKiosk = !demoMode && tabletLine && roles.includes("OPERATOR") && roles.every(role => role === "OPERATOR");
+
+  if (operatorKiosk) {
+    return <div className="operator-kiosk">
+      <header className="operator-kiosk-head">
+        <div>
+          <span>РАБОЧЕЕ МЕСТО ОПЕРАТОРА</span>
+          <h1>Линия {tabletLine.replace(/^L-/, "")}</h1>
+          <p>{user.full_name || user.personnel_number || user.email}</p>
+        </div>
+        <button className="btn ghost" onClick={logout}>Завершить работу / Выйти</button>
+      </header>
+      <main className="operator-kiosk-main">
+        <RoleWorkspace kind="operator" businessDate={null} shiftCode={null} equipmentCode={tabletLine} />
+      </main>
+    </div>;
   }
 
   if (!data) return <div className="loading">Загрузка VITAGROUP OEE…</div>;
@@ -692,7 +721,7 @@ export default function App() {
             setSection(item.target_section || "problems");
           }}
         />}
-        {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={activeBusinessDate} shiftCode={shift} />}
+        {section === "operator-workspace" && <RoleWorkspace kind="operator" businessDate={activeBusinessDate} shiftCode={shift} equipmentCode={roles.includes("OPERATOR") ? tabletLine : ""} />}
         {section === "qc-workspace" && <RoleWorkspace kind="qc" businessDate={activeBusinessDate} shiftCode={shift} />}
         {section === "warehouse-workspace" && <RoleWorkspace kind="warehouse" businessDate={activeBusinessDate} shiftCode={shift} />}
         {section === "accountant-workspace" && <RoleWorkspace kind="accountant" businessDate={activeBusinessDate} shiftCode={shift} />}
