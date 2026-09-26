@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,6 +13,7 @@ from .workspace_service import (
     record_qc_defect,
     record_qc_no_defect,
     record_warehouse_receipt,
+    save_shift_assignment_report,
     start_downtime,
     stop_downtime,
     workspace_context,
@@ -82,6 +84,11 @@ class AccountingInput(BaseModel):
     ticket_no: str | None = None
     comment: str | None = None
     client_event_id: UUID
+
+
+class ShiftAssignmentReportInput(BaseModel):
+    production_run_id: UUID
+    report: dict[str, Any]
 
 
 def _ctx(kind, business_date, shift_code):
@@ -215,6 +222,23 @@ def accountant_control(payload: AccountingInput, user: CurrentUser):
             user, payload.production_run_id, payload.packages_qty,
             payload.qty_per_package, payload.observed_at,
             payload.ticket_no, payload.comment, payload.client_event_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/accountant/shift-assignment",
+    dependencies=[Depends(require_roles("ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"))],
+)
+def accountant_shift_assignment(payload: ShiftAssignmentReportInput, user: CurrentUser):
+    try:
+        return save_shift_assignment_report(
+            user,
+            payload.production_run_id,
+            payload.report,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
