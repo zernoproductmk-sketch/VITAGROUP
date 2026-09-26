@@ -112,20 +112,26 @@ def authenticate(
     ip_address: str | None = None,
     user_agent: str | None = None,
 ) -> dict:
-    normalized_email = email.strip().lower()
+    login_identifier = email.strip()
+    normalized_email = login_identifier.lower()
     now = datetime.now(timezone.utc)
 
     with engine.begin() as connection:
         row = connection.execute(
             text(
                 """
-                SELECT *
-                FROM users
-                WHERE lower(email) = :email
-                FOR UPDATE
+                SELECT u.*
+                FROM users u
+                LEFT JOIN employees e ON e.id = u.employee_id
+                WHERE lower(u.email) = :email
+                   OR e.personnel_number = :personnel_number
+                FOR UPDATE OF u
                 """
             ),
-            {"email": normalized_email},
+            {
+                "email": normalized_email,
+                "personnel_number": login_identifier,
+            },
         ).mappings().first()
 
         if not row:
@@ -148,7 +154,7 @@ def authenticate(
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Неверный email или пароль",
+                detail="Неверный табельный номер / email или пароль",
             )
 
         if not row["is_active"]:
@@ -224,7 +230,7 @@ def authenticate(
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Неверный email или пароль",
+                detail="Неверный табельный номер / email или пароль",
             )
 
         connection.execute(
