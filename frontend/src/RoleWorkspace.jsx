@@ -263,6 +263,180 @@ function WarehouseForm({ selectedRun, onRefresh }) {
   </section>;
 }
 
+function ShiftAssignmentForm({ selectedRun, onRefresh }) {
+  const [open,setOpen]=useState(false);
+  const [report,setReport]=useState({});
+  const [notice,setNotice]=useState("");
+  const [busy,setBusy]=useState(false);
+
+  useEffect(()=>{
+    setReport(selectedRun?.shift_assignment_report || {});
+  },[selectedRun?.id,selectedRun?.shift_assignment_report]);
+
+  if(!selectedRun) return null;
+
+  const setField=(key,value)=>setReport(current=>({...current,[key]:value}));
+  const materials=selectedRun.erp_raw_data?.materials || [];
+
+  const save=async()=>{
+    setBusy(true);
+    try{
+      await api.accountantShiftAssignment({
+        production_run_id:selectedRun.id,
+        report
+      });
+      setNotice("Сменное задание сохранено");
+      await onRefresh();
+    }catch(error){
+      setNotice(error.message||"Не удалось сохранить сменное задание");
+    }finally{
+      setBusy(false);
+    }
+  };
+
+  const plan=selectedRun.planned_qty||0;
+  const shiftLabel=selectedRun.shift_code==="NIGHT"?"НОЧЬ":"ДЕНЬ";
+
+  const input=(key,placeholder="",type="text")=><input
+    className="shift-task-input"
+    type={type}
+    value={report[key]??""}
+    placeholder={placeholder}
+    onChange={e=>setField(key,e.target.value)}
+  />;
+
+  return <>
+    <section className="card panel accountant-shift-task-card">
+      <div>
+        <span className="workspace-eyebrow">Документ смены</span>
+        <h2>Сменное задание</h2>
+        <p>{selectedRun.erp_task_id||selectedRun.order_no||"Задание ERP"} · {selectedRun.equipment_code}</p>
+      </div>
+      <button className="btn primary" onClick={()=>setOpen(true)}>Открыть сменное задание</button>
+    </section>
+
+    {open&&<div className="modal-backdrop shift-task-backdrop">
+      <div className="shift-task-modal">
+        <div className="shift-task-modal-head">
+          <div>
+            <span>СМЕННОЕ ЗАДАНИЕ</span>
+            <h2>{selectedRun.erp_task_id||selectedRun.order_no||"Производственное задание"}</h2>
+          </div>
+          <button className="modal-close" onClick={()=>setOpen(false)}>×</button>
+        </div>
+
+        <div className="shift-task-sheet">
+          <div className="shift-task-topline">
+            <div><b>СМЕННОЕ ЗАДАНИЕ ЦЕХ № 2</b></div>
+            <div><span>Дата:</span><b>{selectedRun.business_date||""} {shiftLabel}</b></div>
+          </div>
+          <div className="shift-task-note">К сменному заданию крепить все этикетки и бирки с рулона, чек-листы</div>
+          <div className="shift-task-machine"><span>Наименование станка:</span><b>{selectedRun.equipment_code} · {selectedRun.equipment_name||""}</b></div>
+
+          <div className="shift-task-job-title">{selectedRun.product_name}</div>
+
+          <div className="shift-task-grid shift-task-grid-head">
+            <div><span>№ заказа</span><b>{selectedRun.order_no||"—"}</b></div>
+            <div><span>Артикул</span><b>{selectedRun.product_article||selectedRun.product_code||"—"}</b></div>
+            <div><span>Клиент</span><b>{selectedRun.erp_customer||"—"}</b></div>
+            <div><span>Тех. карта / спецификация</span><b>{selectedRun.erp_tech_card||"—"}</b></div>
+          </div>
+
+          <div className="shift-task-grid shift-task-plan">
+            <div><span>План на смену, шт</span><b>{nf.format(plan)}</b></div>
+            <div><span>План, кг</span><b>{selectedRun.erp_plan_kg ? nf.format(selectedRun.erp_plan_kg) : "—"}</b></div>
+            <div><span>Нормативное время, ч</span><b>{selectedRun.erp_norm_hours ? nf.format(selectedRun.erp_norm_hours) : "—"}</b></div>
+            <div><span>Фасовка, шт/упак.</span><b>{selectedRun.erp_pcs_per_box ? nf.format(selectedRun.erp_pcs_per_box) : "—"}</b></div>
+          </div>
+
+          <div className="shift-task-report-title">Отчет по заданию — заполняет учетчик</div>
+          <div className="shift-task-input-grid">
+            <label><span>По счетчику, шт</span>{input("counter_qty","0","number")}</label>
+            <label><span>Брак, шт</span>{input("defect_qty","0","number")}</label>
+            <label><span>Брак, кг (тех. отходы)</span>{input("defect_kg","0","number")}</label>
+            <label><span>Начало работы</span>{input("work_start","","time")}</label>
+            <label><span>Конец работы</span>{input("work_end","","time")}</label>
+            <label><span>Брак ОТК, шт</span>{input("qc_defect_qty","0","number")}</label>
+            <label><span>Фактически, шт</span>{input("actual_qty","0","number")}</label>
+            <label><span>Факт, коробов</span>{input("actual_boxes","0","number")}</label>
+            <label><span>Факт, паллет</span>{input("actual_pallets","0","number")}</label>
+          </div>
+
+          <label className="shift-task-wide-input">
+            <span>Примечание (простои, переналадка, брак качества и др.)</span>
+            <textarea value={report.note??""} onChange={e=>setField("note",e.target.value)} />
+          </label>
+
+          <div className="shift-task-section-title">Материалы по заданию 1С:ERP</div>
+          <div className="table-wrap shift-task-materials">
+            <table>
+              <thead><tr><th>Артикул</th><th>Материал</th><th>Склад</th><th>Ед.</th><th>Норматив</th></tr></thead>
+              <tbody>
+                {materials.map((item,index)=><tr key={index}>
+                  <td>{item.article||"—"}</td>
+                  <td>{item.name||"—"}</td>
+                  <td>{item.warehouse||"—"}</td>
+                  <td>{item.unit||"—"}</td>
+                  <td>{item.normative||"—"}</td>
+                </tr>)}
+                {materials.length===0&&<tr><td colSpan="5"><div className="empty-state">Материалы появятся после повторной загрузки печатного задания из 1С:ERP.</div></td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="shift-task-section-title">Расход бумаги ролевой за смену</div>
+          <div className="shift-task-input-grid shift-task-material-inputs">
+            <label><span>Номер роля</span>{input("paper_roll_no")}</label>
+            <label><span>Производитель</span>{input("paper_manufacturer")}</label>
+            <label><span>Вес роля, кг</span>{input("paper_roll_weight","","number")}</label>
+            <label><span>Марка</span>{input("paper_brand")}</label>
+            <label><span>Граммаж</span>{input("paper_grammage","","number")}</label>
+            <label><span>Формат</span>{input("paper_format")}</label>
+            <label><span>Остаток, кг</span>{input("paper_remainder_kg","","number")}</label>
+            <label><span>Остаток, радиус рулона</span>{input("paper_remainder_radius")}</label>
+          </div>
+
+          <div className="shift-task-supplies-grid">
+            <div>
+              <div className="shift-task-section-title">Расход клея за смену</div>
+              <label><span>Производитель / наименование</span>{input("glue_name")}</label>
+              <label><span>№ партии</span>{input("glue_batch")}</label>
+              <label><span>Марка</span>{input("glue_brand")}</label>
+              <label><span>Вес, кг</span>{input("glue_weight","","number")}</label>
+            </div>
+            <div>
+              <div className="shift-task-section-title">Расход шпагата за смену</div>
+              <label><span>Цвет</span>{input("twine_color")}</label>
+              <label><span>Дата производства</span>{input("twine_date","","date")}</label>
+              <label><span>Вес, кг</span>{input("twine_weight","","number")}</label>
+            </div>
+            <div>
+              <div className="shift-task-section-title">Лента / усилитель</div>
+              <label><span>Цвет ленты</span>{input("tape_color")}</label>
+              <label><span>Дата производства</span>{input("tape_date","","date")}</label>
+              <label><span>Вес, кг</span>{input("tape_weight","","number")}</label>
+            </div>
+          </div>
+
+          <div className="shift-task-checks">
+            <label><input type="checkbox" checked={Boolean(report.checklist_control)} onChange={e=>setField("checklist_control",e.target.checked)}/> Чек-лист контроля заполнен и подписан</label>
+            <label><input type="checkbox" checked={Boolean(report.checklist_handover)} onChange={e=>setField("checklist_handover",e.target.checked)}/> Чек-лист передачи смены заполнен и подписан</label>
+            <label><input type="checkbox" checked={Boolean(report.safety_ok)} onChange={e=>setField("safety_ok",e.target.checked)}/> Предохранительные устройства исправны</label>
+          </div>
+        </div>
+
+        <div className="shift-task-actions">
+          <div>{notice&&<div className="notice">{notice}</div>}</div>
+          <div className="action-row">
+            <button className="btn ghost" onClick={()=>setOpen(false)}>Закрыть</button>
+            <button className="btn primary" disabled={busy} onClick={save}>{busy?"Сохранение…":"Сохранить сменное задание"}</button>
+          </div>
+        </div>
+      </div>
+    </div>}
+  </>;
+}
+
 function AccountantForm({ selectedRun, onRefresh }) {
   const [ticket, setTicket] = useState("");
   const [packages, setPackages] = useState("");
@@ -386,7 +560,10 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
         {kind==="operator" && <OperatorForm context={context} selectedRun={selectedRun} onRefresh={refresh} />}
         {kind==="qc" && <QCForm context={context} selectedRun={selectedRun} onRefresh={refresh} />}
         {kind==="warehouse" && <WarehouseForm selectedRun={selectedRun} onRefresh={refresh} />}
-        {kind==="accountant" && <AccountantForm selectedRun={selectedRun} onRefresh={refresh} />}
+        {kind==="accountant" && <>
+          <ShiftAssignmentForm selectedRun={selectedRun} onRefresh={refresh} />
+          <AccountantForm selectedRun={selectedRun} onRefresh={refresh} />
+        </>}
         <ComparePanel kind={kind} run={selectedRun} />
       </div>
     </div>
