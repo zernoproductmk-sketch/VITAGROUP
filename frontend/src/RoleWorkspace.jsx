@@ -263,7 +263,7 @@ function WarehouseForm({ selectedRun, onRefresh }) {
   </section>;
 }
 
-function ShiftAssignmentForm({ selectedRun, onRefresh }) {
+function ShiftAssignmentForm({ context, selectedRun, onRefresh }) {
   const [open,setOpen]=useState(false);
   const [report,setReport]=useState({});
   const [notice,setNotice]=useState("");
@@ -295,7 +295,7 @@ function ShiftAssignmentForm({ selectedRun, onRefresh }) {
   };
 
   const plan=selectedRun.planned_qty||0;
-  const shiftLabel=selectedRun.shift_code==="NIGHT"?"НОЧЬ":"ДЕНЬ";
+  const shiftLabel=context?.shift?.code==="NIGHT"?"НОЧЬ":"ДЕНЬ";
 
   const input=(key,placeholder="",type="text")=><input
     className="shift-task-input"
@@ -328,7 +328,7 @@ function ShiftAssignmentForm({ selectedRun, onRefresh }) {
         <div className="shift-task-sheet">
           <div className="shift-task-topline">
             <div><b>СМЕННОЕ ЗАДАНИЕ ЦЕХ № 2</b></div>
-            <div><span>Дата:</span><b>{selectedRun.business_date||""} {shiftLabel}</b></div>
+            <div><span>Дата:</span><b>{context?.shift?.business_date||""} {shiftLabel}</b></div>
           </div>
           <div className="shift-task-note">К сменному заданию крепить все этикетки и бирки с рулона, чек-листы</div>
           <div className="shift-task-machine"><span>Наименование станка:</span><b>{selectedRun.equipment_code} · {selectedRun.equipment_name||""}</b></div>
@@ -561,7 +561,7 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
         {kind==="qc" && <QCForm context={context} selectedRun={selectedRun} onRefresh={refresh} />}
         {kind==="warehouse" && <WarehouseForm selectedRun={selectedRun} onRefresh={refresh} />}
         {kind==="accountant" && <>
-          <ShiftAssignmentForm selectedRun={selectedRun} onRefresh={refresh} />
+          <ShiftAssignmentForm context={context} selectedRun={selectedRun} onRefresh={refresh} />
           <AccountantForm selectedRun={selectedRun} onRefresh={refresh} />
         </>}
         <ComparePanel kind={kind} run={selectedRun} />
