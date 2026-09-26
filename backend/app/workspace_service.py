@@ -78,6 +78,12 @@ def _load_run(connection, run_id: UUID):
 
 def _checked_time(run: dict, value: datetime | None):
     event_at = _local_dt(value)
+
+    # Historical shift: allow late data entry when no explicit event time
+    # was supplied, but attach the fact to the selected shift.
+    if value is None and event_at > run["shift_ended_at"]:
+        event_at = run["shift_ended_at"] - timedelta(seconds=1)
+
     if event_at < run["shift_started_at"] or event_at > run["shift_ended_at"]:
         raise ValueError("Время события должно находиться внутри выбранной смены")
     return event_at
@@ -304,7 +310,9 @@ def workspace_context(workspace: str, business_date=None, shift_code=None):
                         e.code AS equipment_code,
                         p.name AS product_name,
                         po.order_no,
-                        qi.comment
+                        qi.comment,
+                        qi.created_at > s.ended_at AS entered_outside_shift,
+                        qi.created_at AS recorded_at
                     FROM qc_inspections qi
                     JOIN production_runs pr ON pr.id = qi.production_run_id
                     JOIN equipment e ON e.id = pr.equipment_id
@@ -670,6 +678,7 @@ def record_qc_no_defect(
 ):
     with engine.begin() as connection:
         run = _load_run(connection, run_id)
+        entered_outside_shift = _local_dt(None) > run["shift_ended_at"]
         event_at = _checked_time(run, occurred_at)
         inspection_id = _record_qc_inspection(
             connection,
@@ -687,6 +696,7 @@ def record_qc_no_defect(
         "inspection_id": str(inspection_id),
         "occurred_at": event_at.isoformat(),
         "result": "NO_DEFECT",
+        "entered_outside_shift": entered_outside_shift,
     }
 
 
@@ -696,6 +706,7 @@ def record_qc_defect(user, run_id, quantity, reason_id, occurred_at, comment, cl
 
     with engine.begin() as connection:
         run = _load_run(connection, run_id)
+        entered_outside_shift = _local_dt(None) > run["shift_ended_at"]
         event_at = _checked_time(run, occurred_at)
         event_id = connection.execute(
             text("""
@@ -738,7 +749,12 @@ def record_qc_defect(user, run_id, quantity, reason_id, occurred_at, comment, cl
             source_id=f"WEB:{client_event_id}:CHECK",
         )
 
-    return {"status": "ok", "event_id": str(event_id), "occurred_at": event_at.isoformat()}
+    return {
+        "status": "ok",
+        "event_id": str(event_id),
+        "occurred_at": event_at.isoformat(),
+        "entered_outside_shift": entered_outside_shift,
+    }
 
 
 def record_warehouse_receipt(user, run_id, quantity, received_at, document_no, client_event_id):
