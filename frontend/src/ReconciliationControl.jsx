@@ -122,7 +122,7 @@ function CaseModal({ row, reasons, canEdit, onClose, onSaved }) {
 
 export default function ReconciliationControl({ businessDate, shiftCode, canEdit }) {
   const [data, setData] = useState(null);
-  const [problemOnly, setProblemOnly] = useState(true);
+  const [problemOnly, setProblemOnly] = useState(false);
   const [selected, setSelected] = useState(null);
 
   const refresh = async () => {
@@ -194,7 +194,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
               </td>
               <td><button className="btn secondary" onClick={e => { e.stopPropagation(); setSelected(row); }}>Подробнее</button></td>
             </tr>)}
-            {rows.length === 0 && <tr><td colSpan="13"><div className="empty-state">Расхождений по выбранной смене нет.</div></td></tr>}
+            {rows.length === 0 && <tr><td colSpan="13"><div className="empty-state">{problemOnly ? "Критичных расхождений и отклонений по выбранной смене нет. Снимите фильтр, чтобы увидеть запуски в работе." : "Запусков по выбранной смене нет."}</div></td></tr>}
           </tbody>
         </table>
       </div>
