@@ -907,7 +907,7 @@ def save_shift_assignment_report(user, run_id, report: dict) -> dict:
                     'UPDATE',
                     :user_id,
                     CAST(:report AS jsonb),
-                    'Сохранение интерактивного сменного задания учетчика'
+                    'Сохранение интерактивного сменного задания оператора'
                 )
             """),
             {
