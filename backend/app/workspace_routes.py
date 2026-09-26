@@ -230,10 +230,10 @@ def accountant_control(payload: AccountingInput, user: CurrentUser):
 
 
 @router.post(
-    "/accountant/shift-assignment",
-    dependencies=[Depends(require_roles("ACCOUNTANT_PRODUCTION","PRODUCTION_MANAGER","ADMIN"))],
+    "/operator/shift-assignment",
+    dependencies=[Depends(require_roles("OPERATOR","SHIFT_MASTER","PRODUCTION_MANAGER","ADMIN"))],
 )
-def accountant_shift_assignment(payload: ShiftAssignmentReportInput, user: CurrentUser):
+def operator_shift_assignment(payload: ShiftAssignmentReportInput, user: CurrentUser):
     try:
         return save_shift_assignment_report(
             user,
