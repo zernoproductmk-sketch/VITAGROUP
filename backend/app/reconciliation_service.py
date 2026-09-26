@@ -60,7 +60,7 @@ def _current_stage(row: dict) -> tuple[str, str]:
     if not row["warehouse_entered"]:
         return "WAREHOUSE", "Ожидается приемка складом"
     if not row["erp_entered"]:
-        return "ERP", "Ожидается факт 1С:ERP"
+        return "ERP", "Ожидается проведение в 1С"
     return "COMPLETE", "Цепочка завершена"
 
 
