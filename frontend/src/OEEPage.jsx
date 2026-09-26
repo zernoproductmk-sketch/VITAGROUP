@@ -56,6 +56,7 @@ function RunDetail({ runId, onClose }) {
         <Score label="Availability" value={r.availability} />
         <Score label="Performance" value={r.performance} />
         <Score label="Quality" value={r.quality} />
+        <Score label="Выполнение плана" value={r.plan_fulfillment} />
         <Score label="OEE" value={r.oee} />
       </div>
 
@@ -99,6 +100,10 @@ function RunDetail({ runId, onClose }) {
         <div className="formula-row">
           <b>Quality</b>
           <span>{fmt(f.quality.numerator)} / {fmt(f.quality.denominator)} = {pct(f.quality.result)}</span>
+        </div>
+        <div className="formula-row">
+          <b>Выполнение плана по годной продукции</b>
+          <span>{fmt(f.plan_fulfillment.numerator)} / {fmt(f.plan_fulfillment.denominator)} = {pct(f.plan_fulfillment.result)}</span>
         </div>
         <div className="formula-row total">
           <b>OEE</b>
@@ -193,6 +198,7 @@ export default function OEEPage({ businessDate, shiftCode }) {
               <th>A</th>
               <th>P</th>
               <th>Q</th>
+              <th>План, %</th>
               <th>OEE</th>
               <th></th>
             </tr>
@@ -208,10 +214,11 @@ export default function OEEPage({ businessDate, shiftCode }) {
               <td>{pct(row.availability)}</td>
               <td>{pct(row.performance)}</td>
               <td>{pct(row.quality)}</td>
+              <td>{pct(row.plan_fulfillment)}</td>
               <td><b>{pct(row.oee)}</b></td>
               <td><button className="btn secondary" onClick={() => setSelectedRunId(row.id)}>Расчет</button></td>
             </tr>)}
-            {filtered.length === 0 && <tr><td colSpan="11"><div className="empty-state">Для выбранной смены запусков пока нет.</div></td></tr>}
+            {filtered.length === 0 && <tr><td colSpan="12"><div className="empty-state">Для выбранной смены запусков пока нет.</div></td></tr>}
           </tbody>
         </table>
       </div>
