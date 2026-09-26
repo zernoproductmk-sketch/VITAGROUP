@@ -71,11 +71,11 @@ export default function ERPPlan() {
     <div className="integration-toolbar card">
       <div>
         <h2>Производственный план 1С / ERP</h2>
-        <p>Яндекс Диск → ERP staging → заказы → производственные запуски</p>
+        <p>Яндекс Диск: все файлы папки → ERP staging → заказы → производственные запуски</p>
       </div>
       <div className="action-row">
         <button className="btn ghost" disabled={!!busy} onClick={() => run("Проверка файла", api.yandexPreview)}>Проверить файл</button>
-        <button className="btn secondary" disabled={!!busy} onClick={() => run("Импорт", api.yandexImport)}>Импортировать с Яндекс Диска</button>
+        <button className="btn secondary" disabled={!!busy} onClick={() => run("Импорт папки", api.yandexImport)}>Импортировать все задания из папки</button>
         <button className="btn primary" disabled={!!busy} onClick={() => run("Создание заказов", api.erpPlanPromote)}>Создать заказы / запуски</button>
       </div>
     </div>
