@@ -40,3 +40,5 @@ nav button{display:flex;align-items:center;justify-content:space-between;gap:8px
 .reconciliation-clickable-row{cursor:pointer;transition:background .15s ease}
 .reconciliation-clickable-row:hover{background:#f5f8ff}
 .reconciliation-clickable-row td:first-child b{text-decoration:underline;text-decoration-color:#c7d7fe;text-underline-offset:3px}
+
+.qc-confirmation-note{margin-top:10px;font-size:11px;line-height:1.45}
