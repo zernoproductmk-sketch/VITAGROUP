@@ -68,6 +68,7 @@ function OperatorForm({ context, selectedRun, onRefresh }) {
   const [reason, setReason] = useState("");
   const [comment, setComment] = useState("");
   const [notice, setNotice] = useState("");
+  const [lateEntry, setLateEntry] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const submitOutput = async () => {
@@ -203,20 +204,30 @@ function QCForm({ context, selectedRun, onRefresh }) {
       comment.trim()
     ].filter(Boolean).join(". ");
 
-    await api.qcDefect({
-      production_run_id: selectedRun.id,
-      quantity: Number(quantity),
-      reason_id: reasonIsManual ? null : (reason || null),
-      occurred_at: null,
-      comment: detail || null,
-      client_event_id: uuid()
-    });
-    setQuantity("");
-    setReason("");
-    setManualReason("");
-    setComment("");
-    setNotice("Подтвержденный брак ОТК сохранен");
-    await onRefresh();
+    try{
+      const result = await api.qcDefect({
+        production_run_id: selectedRun.id,
+        quantity: Number(quantity),
+        reason_id: reasonIsManual ? null : (reason || null),
+        occurred_at: null,
+        comment: detail || null,
+        client_event_id: uuid()
+      });
+      setQuantity("");
+      setReason("");
+      setManualReason("");
+      setComment("");
+      setLateEntry(Boolean(result?.entered_outside_shift));
+      setNotice(
+        result?.entered_outside_shift
+          ? "Брак ОТК сохранен. Запись внесена вне смены."
+          : "Подтвержденный брак ОТК сохранен"
+      );
+      await onRefresh();
+    }catch(error){
+      setLateEntry(false);
+      setNotice(error.message || "Не удалось сохранить запись ОТК");
+    }
   };
 
   const saveNoDefect = async () => {
@@ -236,6 +247,15 @@ function QCForm({ context, selectedRun, onRefresh }) {
 
   return <section className="card panel workspace-form-card">
     <h2>Фиксация брака ОТК</h2>
+    {selectedRun ? <div className="qc-selected-task">
+      <div><span>Линия / машина</span><b>{selectedRun.equipment_code} · {selectedRun.equipment_name||"—"}</b></div>
+      <div><span>№ заказа</span><b>{selectedRun.order_no||"—"}</b></div>
+      <div><span>Артикул</span><b>{selectedRun.product_article||selectedRun.product_code||"—"}</b></div>
+      <div><span>Продукция</span><b>{selectedRun.product_name||"—"}</b></div>
+      <div><span>Дата / смена</span><b>{context.shift.business_date} · {context.shift.code==="NIGHT"?"НОЧЬ":"ДЕНЬ"}</b></div>
+    </div> : <div className="workspace-selection-warning">
+      Сначала выберите производственное задание слева.
+    </div>}
     <label className="form-label">Количество, шт.</label>
     <input className="form-control" type="number" min="0" value={quantity} onChange={e=>setQuantity(e.target.value)} />
     <label className="form-label">Причина брака</label>
@@ -263,7 +283,10 @@ function QCForm({ context, selectedRun, onRefresh }) {
       <button className="btn primary workspace-save" disabled={!selectedRun || Number(quantity)<=0 || !reasonText} onClick={save}>Сохранить брак</button>
       <button className="btn secondary workspace-save" disabled={!selectedRun} onClick={saveNoDefect}>Проверено, брака нет</button>
     </div>
-    {notice && <div className="notice">{notice}</div>}
+    {notice && <div className={lateEntry ? "notice notice-late-entry" : "notice"}>
+      {lateEntry && <b className="late-entry-badge">ВНЕ СМЕНЫ</b>}
+      <span>{notice}</span>
+    </div>}
   </section>;
 }
 
@@ -569,10 +592,11 @@ function HistoryTable({ rows = [] }) {
     <div className="panel-head"><h2>История записей за смену</h2><span>{rows.length} строк</span></div>
     <div className="table-wrap">
       <table>
-        <thead><tr><th>Время</th><th>Тип</th><th>Линия</th><th>Заказ</th><th>Продукция</th><th>Количество</th><th>Комментарий / талон</th></tr></thead>
+        <thead><tr><th>Время</th><th>Статус</th><th>Тип</th><th>Линия</th><th>Заказ</th><th>Продукция</th><th>Количество</th><th>Комментарий / талон</th></tr></thead>
         <tbody>
           {rows.map((row) => <tr key={row.id}>
             <td>{new Date(row.event_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</td>
+            <td>{row.entered_outside_shift ? <b className="late-entry-badge">ВНЕ СМЕНЫ</b> : <span className="history-in-shift">В смене</span>}</td>
             <td>{row.event_type}</td>
             <td>{row.equipment_code || "—"}</td>
             <td>{row.order_no || "—"}</td>
@@ -580,7 +604,7 @@ function HistoryTable({ rows = [] }) {
             <td>{nf.format(row.quantity || 0)}</td>
             <td>{row.comment || "—"}</td>
           </tr>)}
-          {rows.length === 0 && <tr><td colSpan="7"><div className="empty-state">Записей за смену пока нет.</div></td></tr>}
+          {rows.length === 0 && <tr><td colSpan="8"><div className="empty-state">Записей за смену пока нет.</div></td></tr>}
         </tbody>
       </table>
     </div>
@@ -594,7 +618,10 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
   const refresh = async () => {
     const result = await api.workspaceContext(kind, businessDate, shiftCode);
     setContext(result);
-    setSelectedRunId(current => current || result.runs?.[0]?.id || null);
+    setSelectedRunId(current => {
+      const stillExists = result.runs?.some(run => run.id === current);
+      return stillExists ? current : (result.runs?.[0]?.id || null);
+    });
   };
 
   useEffect(() => { refresh(); }, [kind, businessDate, shiftCode]);
