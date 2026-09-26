@@ -86,6 +86,13 @@ function CaseModal({ row, reasons, canEdit, onClose, onSaved }) {
         <i>→</i>
         <div><span>ERP</span><b>{nf.format(row.erp_qty)}</b></div>
       </div>
+      {row.qc_entered && <div className="notice qc-confirmation-note">
+        {row.qc_defect_qty === row.operator_defect_qty
+          ? `ОТК подтвердило ${nf.format(row.qc_defect_qty)} шт брака оператора. Выпуск остается ${nf.format(row.operator_qty)} шт.`
+          : row.qc_defect_qty > row.operator_defect_qty
+            ? `ОТК выявило дополнительно ${nf.format(row.qc_defect_qty-row.operator_defect_qty)} шт брака. Выпуск скорректирован с ${nf.format(row.operator_qty)} до ${nf.format(row.qc_good_qty)} шт.`
+            : `ОТК подтвердило ${nf.format(row.qc_defect_qty)} из ${nf.format(row.operator_defect_qty)} шт брака оператора. Выпуск автоматически не увеличен.`}
+      </div>
 
       <label className="form-label">Причина</label>
       <select className="form-control" disabled={!canEdit} value={reasonCode} onChange={e => setReasonCode(e.target.value)}>
