@@ -63,8 +63,36 @@ def _resolve_product(connection, article):
     ).scalar_one_or_none()
 
 
+def _equipment_code_variants(*codes):
+    result = []
+    seen = set()
+
+    for raw in codes:
+        if not raw:
+            continue
+
+        code = str(raw).strip()
+        if not code:
+            continue
+
+        variants = [code]
+        if code.upper().startswith("L-"):
+            variants.append(code[2:])
+        else:
+            variants.append(f"L-{code}")
+
+        for variant in variants:
+            key = variant.upper()
+            if key not in seen:
+                seen.add(key)
+                result.append(variant)
+
+    return result
+
+
 def _resolve_equipment(connection, *codes):
-    candidates = [str(code).strip() for code in codes if code and str(code).strip()]
+    candidates = _equipment_code_variants(*codes)
+
     for code in candidates:
         direct = connection.execute(
             text(
@@ -102,6 +130,7 @@ def _resolve_equipment(connection, *codes):
         ).scalar_one_or_none()
         if alias:
             return alias
+
     return None
 
 
