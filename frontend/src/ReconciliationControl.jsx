@@ -8,7 +8,7 @@ const issueLabels = {
   OPERATOR_QC: "Оператор → ОТК",
   QC_ACCOUNTANT: "ОТК → учетчик",
   ACCOUNTANT_WAREHOUSE: "Учетчик → склад",
-  WAREHOUSE_ERP: "Склад → ERP"
+  WAREHOUSE_ERP: "Склад → Факт 1С:ERP"
 };
 
 const stageLabels = {
@@ -16,7 +16,7 @@ const stageLabels = {
   QC: "ОТК",
   ACCOUNTANT: "Учетчик",
   WAREHOUSE: "Склад",
-  ERP: "ERP",
+  ERP: "Факт 1С:ERP",
   COMPLETE: "Завершено"
 };
 
@@ -84,7 +84,7 @@ function CaseModal({ row, reasons, canEdit, onClose, onSaved }) {
         <i>→</i>
         <div><span>Склад</span><b>{nf.format(row.warehouse_qty)}</b></div>
         <i>→</i>
-        <div><span>ERP</span><b>{nf.format(row.erp_qty)}</b></div>
+        <div><span>Факт 1С:ERP</span><b>{row.erp_entered ? nf.format(row.erp_qty) : "Ожидается проведение в 1С"}</b></div>
       </div>
       {row.qc_entered && <div className="notice qc-confirmation-note">
         {row.qc_defect_qty === row.operator_defect_qty
@@ -144,7 +144,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
     <div className="integration-toolbar card">
       <div>
         <h2>Сквозная сверка смены</h2>
-        <p>План 1С → оператор → ОТК → учетчик → склад → ERP</p>
+        <p>План 1С → оператор → ОТК → учетчик → склад → Факт 1С:ERP</p>
       </div>
       <label className="problem-switch">
         <input type="checkbox" checked={problemOnly} onChange={e => setProblemOnly(e.target.checked)} />
@@ -167,7 +167,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
         <table className="reconciliation-control-table">
           <thead>
             <tr>
-              <th>Линия</th><th>Заказ</th><th>Артикул</th><th>План</th><th>Оператор</th><th>ОТК</th><th>Учетчик</th><th>Склад</th><th>ERP</th><th>Текущий этап</th><th>Проблемный участок</th><th>Статус</th><th></th>
+              <th>Линия</th><th>Заказ</th><th>Артикул</th><th>План</th><th>Оператор</th><th>ОТК</th><th>Учетчик</th><th>Склад</th><th>Факт 1С:ERP</th><th>Текущий этап</th><th>Проблемный участок</th><th>Статус</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -185,7 +185,7 @@ export default function ReconciliationControl({ businessDate, shiftCode, canEdit
               <td>{nf.format(row.qc_good_qty)}</td>
               <td>{nf.format(row.accounting_qty)}</td>
               <td>{nf.format(row.warehouse_qty)}</td>
-              <td>{nf.format(row.erp_qty)}</td>
+              <td>{row.erp_entered ? nf.format(row.erp_qty) : <small>Ожидается проведение в 1С</small>}</td>
               <td><b>{stageLabels[row.current_stage] || "—"}</b><small>{row.stage_label}</small></td>
               <td>{issueLabels[row.primary_issue] || "—"}</td>
               <td>
