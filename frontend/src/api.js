@@ -381,8 +381,8 @@ export const api = {
   qcDefect: (payload) => request("/api/v1/workspaces/qc/defect", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
   warehouseReceipt: (payload) => request("/api/v1/workspaces/warehouse/receipt", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
   accountantControl: (payload) => request("/api/v1/workspaces/accountant/control", { status: "demo" }, { method: "POST", body: JSON.stringify(payload) }),
-  accountantShiftAssignment: (payload) => strictRequest(
-    "/api/v1/workspaces/accountant/shift-assignment",
+  operatorShiftAssignment: (payload) => strictRequest(
+    "/api/v1/workspaces/operator/shift-assignment",
     { method: "POST", body: JSON.stringify(payload) }
   ),
   hasToken: () => Boolean(getToken()),
