@@ -314,6 +314,7 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
         qc_defect = _as_float(row["qc_defect_qty"])
         qc_additional_defect = max(qc_defect - operator_defect, 0)
         good_qty = max(output_qty - qc_additional_defect, 0)
+        total_count_qty = output_qty + operator_defect
         rate = (
             _as_float(row["ideal_rate_per_hour"])
             if row["ideal_rate_per_hour"] is not None
@@ -331,7 +332,7 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
             if theoretical is not None
             else None
         )
-        quality = _pct(good_qty, output_qty)
+        quality = _pct(good_qty, total_count_qty)
         oee = None
         if (
             availability is not None
@@ -367,6 +368,7 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
                 "qc_defect_qty": qc_defect,
                 "qc_additional_defect_qty": qc_additional_defect,
                 "good_qty": good_qty,
+                "total_count_qty": total_count_qty,
                 "warehouse_qty": _as_float(row["warehouse_qty"]),
                 "erp_qty": _as_float(row["erp_qty"]),
                 "theoretical_qty": _round(theoretical, 3),
@@ -391,6 +393,7 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
     qc_defect = sum(row["qc_defect_qty"] for row in rows)
     qc_additional_defect = sum(row.get("qc_additional_defect_qty", 0) for row in rows)
     good_qty = sum(row["good_qty"] for row in rows)
+    total_count_qty = sum(row.get("total_count_qty", row["output_qty"] + row["operator_defect_qty"]) for row in rows)
     warehouse_qty = sum(row["warehouse_qty"] for row in rows)
     erp_qty = sum(row["erp_qty"] for row in rows)
     plan_qty = sum(row["planned_qty"] for row in rows)
@@ -411,7 +414,7 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
     performance = None
     if not missing_norm_rows:
         performance = _pct(output_qty, theoretical_qty)
-    quality = _pct(good_qty, output_qty)
+    quality = _pct(good_qty, total_count_qty)
 
     oee = None
     if (
@@ -435,6 +438,7 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
             "plan": _round(plan_qty, 3),
             "operator_output": _round(output_qty, 3),
             "good_product": _round(good_qty, 3),
+            "total_count": _round(total_count_qty, 3),
             "operator_defect": _round(operator_defect, 3),
             "qc_defect": _round(qc_defect, 3),
             "qc_additional_defect": _round(qc_additional_defect, 3),
