@@ -47,7 +47,7 @@ export default function UserAdminPage() {
     setNotice("");
     try {
       await api.adminCreateUser({
-        email: form.email,
+        email: form.email.trim() || null,
         password: form.password,
         employee_id: form.employee_id || null,
         roles: form.roles
