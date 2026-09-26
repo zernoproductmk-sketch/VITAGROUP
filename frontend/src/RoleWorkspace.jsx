@@ -411,10 +411,23 @@ function ShiftAssignmentForm({ context, selectedRun, onRefresh }) {
               <label><span>Вес, кг</span>{input("twine_weight","","number")}</label>
             </div>
             <div>
-              <div className="shift-task-section-title">Лента / усилитель</div>
-              <label><span>Цвет ленты</span>{input("tape_color")}</label>
-              <label><span>Дата производства</span>{input("tape_date","","date")}</label>
-              <label><span>Вес, кг</span>{input("tape_weight","","number")}</label>
+              <div className="shift-task-section-title">Расход ленты для плоской ручки</div>
+              <label><span>Цвет</span>{input("flat_tape_color")}</label>
+              <label><span>Дата производства</span>{input("flat_tape_date","","date")}</label>
+              <label><span>Вес, кг</span>{input("flat_tape_weight","","number")}</label>
+            </div>
+          </div>
+
+          <div className="shift-task-supplies-grid shift-task-supplies-two">
+            <div>
+              <div className="shift-task-section-title">Расход ленты для усилителя</div>
+              <label><span>Цвет</span>{input("reinforcement_tape_color")}</label>
+              <label><span>Дата производства</span>{input("reinforcement_tape_date","","date")}</label>
+              <label><span>Вес, кг</span>{input("reinforcement_tape_weight","","number")}</label>
+            </div>
+            <div>
+              <div className="shift-task-section-title">Дополнительное примечание</div>
+              <label><span>Комментарий</span>{input("general_note")}</label>
             </div>
           </div>
 
@@ -422,6 +435,14 @@ function ShiftAssignmentForm({ context, selectedRun, onRefresh }) {
             <label><input type="checkbox" checked={Boolean(report.checklist_control)} onChange={e=>setField("checklist_control",e.target.checked)}/> Чек-лист контроля заполнен и подписан</label>
             <label><input type="checkbox" checked={Boolean(report.checklist_handover)} onChange={e=>setField("checklist_handover",e.target.checked)}/> Чек-лист передачи смены заполнен и подписан</label>
             <label><input type="checkbox" checked={Boolean(report.safety_ok)} onChange={e=>setField("safety_ok",e.target.checked)}/> Предохранительные устройства исправны</label>
+          </div>
+
+          <div className="shift-task-section-title">Ответственные за смену</div>
+          <div className="shift-task-signatures">
+            <label><span>Мастер — ФИО</span>{input("master_name")}<em><input type="checkbox" checked={Boolean(report.master_signed)} onChange={e=>setField("master_signed",e.target.checked)}/> подтверждено</em></label>
+            <label><span>Оператор — ФИО</span>{input("operator_name")}<em><input type="checkbox" checked={Boolean(report.operator_signed)} onChange={e=>setField("operator_signed",e.target.checked)}/> подтверждено</em></label>
+            <label><span>Бригадир — ФИО</span>{input("brigadier_name")}<em><input type="checkbox" checked={Boolean(report.brigadier_signed)} onChange={e=>setField("brigadier_signed",e.target.checked)}/> подтверждено</em></label>
+            <label><span>Упаковщик — ФИО</span>{input("packer_name")}<em><input type="checkbox" checked={Boolean(report.packer_signed)} onChange={e=>setField("packer_signed",e.target.checked)}/> подтверждено</em></label>
           </div>
         </div>
 
