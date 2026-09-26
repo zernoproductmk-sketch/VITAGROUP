@@ -70,8 +70,9 @@ function RunDetail({ runId, onClose }) {
         <section className="detail-block">
           <h3>Выпуск</h3>
           <div className="detail-line"><span>План</span><b>{fmt(r.planned_qty)} шт.</b></div>
-          <div className="detail-line"><span>Факт оператора</span><b>{fmt(r.output_qty)} шт.</b></div>
-          <div className="detail-line"><span>Годная продукция</span><b>{fmt(r.good_qty)} шт.</b></div>
+          <div className="detail-line"><span>Факт оператора (годная продукция)</span><b>{fmt(r.output_qty)} шт.</b></div>
+          <div className="detail-line"><span>Всего произведено до брака</span><b>{fmt(r.total_count_qty)} шт.</b></div>
+          <div className="detail-line"><span>Годная продукция после ОТК</span><b>{fmt(r.good_qty)} шт.</b></div>
           <div className="detail-line"><span>Норматив</span><b>{fmt(r.ideal_rate_per_hour)} шт./ч</b></div>
           <div className="detail-line"><span>Теоретический выпуск</span><b>{fmt(r.theoretical_qty)} шт.</b></div>
         </section>
@@ -81,7 +82,7 @@ function RunDetail({ runId, onClose }) {
           <div className="detail-line"><span>Брак оператора</span><b>{fmt(r.operator_defect_qty)}</b></div>
           <div className="detail-line"><span>Брак ОТК</span><b>{fmt(r.qc_defect_qty)}</b></div>
           <div className="detail-line"><span>Склад</span><b>{fmt(r.warehouse_qty)}</b></div>
-          <div className="detail-line"><span>ERP</span><b>{fmt(r.erp_qty)}</b></div>
+          <div className="detail-line"><span>Факт 1С:ERP</span><b>{fmt(r.erp_qty)}</b></div>
         </section>
       </div>
 
