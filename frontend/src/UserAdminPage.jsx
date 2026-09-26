@@ -12,6 +12,18 @@ export default function UserAdminPage() {
   });
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+
+  const filteredEmployees = meta.employees.filter(employee => {
+    const needle = employeeSearch.trim().toLowerCase();
+    if (!needle) return true;
+    return [
+      employee.full_name,
+      employee.personnel_number,
+      employee.position_name,
+      employee.department_name
+    ].some(value => String(value || "").toLowerCase().includes(needle));
+  });
 
   const refresh = async () => {
     const [u, m] = await Promise.all([api.adminUsers(), api.adminMeta()]);
@@ -41,6 +53,7 @@ export default function UserAdminPage() {
         roles: form.roles
       });
       setForm({ email: "", password: "", employee_id: "", roles: [] });
+      setEmployeeSearch("");
       setNotice("Пользователь создан. При первом входе потребуется сменить пароль.");
       await refresh();
     } catch (error) {
@@ -87,12 +100,19 @@ export default function UserAdminPage() {
         <label><span>Email</span><input className="form-control" value={form.email} onChange={e => setForm({...form,email:e.target.value})} /></label>
         <label><span>Временный пароль</span><input className="form-control" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} /></label>
         <label><span>Сотрудник</span>
+          <input
+            className="form-control user-employee-search"
+            value={employeeSearch}
+            onChange={e => setEmployeeSearch(e.target.value)}
+            placeholder="Фамилия или табельный номер"
+          />
           <select className="form-control" value={form.employee_id} onChange={e => setForm({...form,employee_id:e.target.value})}>
             <option value="">Без привязки</option>
-            {meta.employees.map(employee => <option key={employee.id} value={employee.id} disabled={Boolean(employee.user_id)}>
+            {filteredEmployees.map(employee => <option key={employee.id} value={employee.id} disabled={Boolean(employee.user_id)}>
               {employee.full_name} · {employee.personnel_number}
             </option>)}
           </select>
+          <small>{employeeSearch ? `Найдено: ${filteredEmployees.length}` : `Сотрудников: ${meta.employees.length}`}</small>
         </label>
       </div>
 
