@@ -52,15 +52,55 @@ def list_users() -> list[dict]:
 
 
 def create_user(
-    email: str,
+    email: str | None,
     password: str,
     roles: list[str],
     employee_id: UUID | None = None,
 ) -> dict:
-    normalized_email = email.strip().lower()
     password_value = hash_password(password)
 
     with engine.begin() as connection:
+        employee = None
+        if employee_id:
+            employee = connection.execute(
+                text(
+                    """
+                    SELECT
+                        e.id,
+                        e.personnel_number,
+                        e.full_name,
+                        u.id AS user_id
+                    FROM employees e
+                    LEFT JOIN users u ON u.employee_id = e.id
+                    WHERE e.id = :employee_id
+                      AND e.is_active = true
+                    LIMIT 1
+                    """
+                ),
+                {"employee_id": employee_id},
+            ).mappings().first()
+            if not employee:
+                raise ValueError("Активный сотрудник не найден")
+            if employee["user_id"]:
+                raise ValueError("У этого сотрудника уже есть учетная запись")
+
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email:
+            if not employee:
+                raise ValueError("Выберите сотрудника или укажите email")
+            personnel = str(employee["personnel_number"]).strip()
+            safe_personnel = "".join(
+                ch for ch in personnel if ch.isalnum() or ch in ("-", "_")
+            ).lower()
+            normalized_email = f"employee-{safe_personnel}@internal.vitagroup.ru"
+
+        duplicate_email = connection.execute(
+            text("SELECT 1 FROM users WHERE lower(email) = :email"),
+            {"email": normalized_email},
+        ).scalar_one_or_none()
+        if duplicate_email:
+            raise ValueError("Учетная запись с таким email уже существует")
+
         available = {
             row["code"]
             for row in connection.execute(
@@ -133,7 +173,6 @@ def create_user(
         "roles": sorted(set(roles)),
         "employee_id": str(employee_id) if employee_id else None,
     }
-
 
 def set_user_roles(user_id: UUID, roles: list[str]) -> dict:
     with engine.begin() as connection:
