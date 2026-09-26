@@ -182,19 +182,38 @@ function OperatorForm({ context, selectedRun, onRefresh }) {
 function QCForm({ context, selectedRun, onRefresh }) {
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
+  const [manualReason, setManualReason] = useState("");
   const [comment, setComment] = useState("");
   const [notice, setNotice] = useState("");
 
+  const reasonIsManual = reason === "__OTHER__";
+  const selectedReason = context.defect_reasons.find(item=>item.id===reason);
+  const reasonText = reasonIsManual
+    ? manualReason.trim()
+    : (selectedReason?.name || "");
+
   const save = async () => {
+    if(!selectedRun || Number(quantity)<=0 || !reasonText){
+      setNotice("Укажите причину брака: выберите из списка или введите вручную");
+      return;
+    }
+
+    const detail = [
+      `Причина брака: ${reasonText}`,
+      comment.trim()
+    ].filter(Boolean).join(". ");
+
     await api.qcDefect({
       production_run_id: selectedRun.id,
       quantity: Number(quantity),
-      reason_id: reason || null,
+      reason_id: reasonIsManual ? null : (reason || null),
       occurred_at: null,
-      comment: comment || null,
+      comment: detail || null,
       client_event_id: uuid()
     });
     setQuantity("");
+    setReason("");
+    setManualReason("");
     setComment("");
     setNotice("Подтвержденный брак ОТК сохранен");
     await onRefresh();
@@ -209,6 +228,7 @@ function QCForm({ context, selectedRun, onRefresh }) {
     });
     setQuantity("");
     setReason("");
+    setManualReason("");
     setComment("");
     setNotice("Проверка ОТК без брака подтверждена");
     await onRefresh();
@@ -219,14 +239,28 @@ function QCForm({ context, selectedRun, onRefresh }) {
     <label className="form-label">Количество, шт.</label>
     <input className="form-control" type="number" min="0" value={quantity} onChange={e=>setQuantity(e.target.value)} />
     <label className="form-label">Причина брака</label>
-    <select className="form-control" value={reason} onChange={e=>setReason(e.target.value)}>
-      <option value="">Не выбрано</option>
+    <select className="form-control" value={reason} onChange={e=>{
+      setReason(e.target.value);
+      if(e.target.value!=="__OTHER__") setManualReason("");
+      setNotice("");
+    }}>
+      <option value="">Выберите причину</option>
       {context.defect_reasons.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+      <option value="__OTHER__">Другая причина — ввести вручную</option>
     </select>
+    {reasonIsManual&&<>
+      <label className="form-label">Причина брака — вручную</label>
+      <input
+        className="form-control"
+        value={manualReason}
+        onChange={e=>setManualReason(e.target.value)}
+        placeholder="Например: смещение печати, склейка, повреждение..."
+      />
+    </>}
     <label className="form-label">Комментарий</label>
-    <input className="form-control" value={comment} onChange={e=>setComment(e.target.value)} />
+    <input className="form-control" value={comment} onChange={e=>setComment(e.target.value)} placeholder="Дополнительная информация" />
     <div className="qc-actions">
-      <button className="btn primary workspace-save" disabled={!selectedRun || Number(quantity)<=0} onClick={save}>Сохранить брак</button>
+      <button className="btn primary workspace-save" disabled={!selectedRun || Number(quantity)<=0 || !reasonText} onClick={save}>Сохранить брак</button>
       <button className="btn secondary workspace-save" disabled={!selectedRun} onClick={saveNoDefect}>Проверено, брака нет</button>
     </div>
     {notice && <div className="notice">{notice}</div>}
