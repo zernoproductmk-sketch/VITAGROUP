@@ -492,6 +492,7 @@ def _persist_printed_1c_plan(
                 "product_name": item.get("product_name"),
                 "specification": parsed.get("specification"),
                 "route_operations": item.get("route_operations") or [],
+                "materials": parsed.get("materials") or [],
             }
 
             try:
