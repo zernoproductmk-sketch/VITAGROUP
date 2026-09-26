@@ -281,7 +281,7 @@ function ShiftAssignmentForm({ context, selectedRun, onRefresh }) {
   const save=async()=>{
     setBusy(true);
     try{
-      await api.accountantShiftAssignment({
+      await api.operatorShiftAssignment({
         production_run_id:selectedRun.id,
         report
       });
@@ -578,13 +578,13 @@ export default function RoleWorkspace({ kind, businessDate, shiftCode }) {
       </section>
 
       <div>
-        {kind==="operator" && <OperatorForm context={context} selectedRun={selectedRun} onRefresh={refresh} />}
+        {kind==="operator" && <>
+          <ShiftAssignmentForm context={context} selectedRun={selectedRun} onRefresh={refresh} />
+          <OperatorForm context={context} selectedRun={selectedRun} onRefresh={refresh} />
+        </>}
         {kind==="qc" && <QCForm context={context} selectedRun={selectedRun} onRefresh={refresh} />}
         {kind==="warehouse" && <WarehouseForm selectedRun={selectedRun} onRefresh={refresh} />}
-        {kind==="accountant" && <>
-          <ShiftAssignmentForm context={context} selectedRun={selectedRun} onRefresh={refresh} />
-          <AccountantForm selectedRun={selectedRun} onRefresh={refresh} />
-        </>}
+        {kind==="accountant" && <AccountantForm selectedRun={selectedRun} onRefresh={refresh} />}
         <ComparePanel kind={kind} run={selectedRun} />
       </div>
     </div>
