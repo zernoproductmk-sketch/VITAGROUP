@@ -97,8 +97,6 @@ export default function UserAdminPage() {
       </div>
 
       <div className="user-create-grid">
-        <label><span>Email</span><input className="form-control" value={form.email} onChange={e => setForm({...form,email:e.target.value})} /></label>
-        <label><span>Временный пароль</span><input className="form-control" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} /></label>
         <label><span>Сотрудник</span>
           <input
             className="form-control user-employee-search"
@@ -114,6 +112,11 @@ export default function UserAdminPage() {
           </select>
           <small>{employeeSearch ? `Найдено: ${filteredEmployees.length}` : `Сотрудников: ${meta.employees.length}`}</small>
         </label>
+        <label><span>Временный пароль</span><input className="form-control" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} /></label>
+        <label><span>Email (необязательно)</span><input className="form-control" value={form.email} onChange={e => setForm({...form,email:e.target.value})} placeholder="Для оператора оставьте пустым" /></label>
+      </div>
+      <div className="notice">
+        Для оператора выберите сотрудника, задайте временный пароль и роль «Оператор». Вход будет по табельному номеру; email не требуется.
       </div>
 
       <div className="role-picker">
@@ -124,7 +127,7 @@ export default function UserAdminPage() {
       </div>
 
       <div className="action-row user-create-actions">
-        <button className="btn primary" disabled={busy || !form.email || form.password.length < 6 || form.roles.length === 0} onClick={createUser}>Создать пользователя</button>
+        <button className="btn primary" disabled={busy || (!form.employee_id && !form.email) || form.password.length < 6 || form.roles.length === 0} onClick={createUser}>Создать пользователя</button>
       </div>
 
       {notice && <div className="notice">{notice}</div>}
@@ -136,7 +139,7 @@ export default function UserAdminPage() {
         {users.map(user => <article className="user-admin-row" key={user.id}>
           <div className="user-admin-main">
             <b>{user.full_name || user.email}</b>
-            <span>{user.email}</span>
+            <span>{user.personnel_number ? `Вход: таб. № ${user.personnel_number}` : user.email}</span>
             <small>{user.position_name || "Без должности"}{user.personnel_number ? ` · таб. № ${user.personnel_number}` : ""}</small>
           </div>
           <div className="user-role-chips">
