@@ -328,11 +328,12 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
 
         availability = _pct(runtime_seconds, planned_seconds)
         performance = (
-            _pct(output_qty, theoretical)
+            _pct(total_count_qty, theoretical)
             if theoretical is not None
             else None
         )
         quality = _pct(good_qty, total_count_qty)
+        plan_fulfillment = _pct(good_qty, _as_float(row["planned_qty"]))
         oee = None
         if (
             availability is not None
@@ -375,6 +376,7 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
                 "availability": availability,
                 "performance": performance,
                 "quality": quality,
+                "plan_fulfillment": plan_fulfillment,
                 "oee": oee,
                 "active_downtime_reason": row["active_reason"],
             }
@@ -413,8 +415,9 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
     availability = _pct(runtime_seconds, planned_seconds)
     performance = None
     if not missing_norm_rows:
-        performance = _pct(output_qty, theoretical_qty)
+        performance = _pct(total_count_qty, theoretical_qty)
     quality = _pct(good_qty, total_count_qty)
+    plan_fulfillment = _pct(good_qty, plan_qty)
 
     oee = None
     if (
@@ -433,6 +436,7 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
             "availability": availability,
             "performance": performance,
             "quality": quality,
+            "plan_fulfillment": plan_fulfillment,
         },
         "production": {
             "plan": _round(plan_qty, 3),
