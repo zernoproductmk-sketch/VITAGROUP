@@ -78,8 +78,9 @@ class WarehouseReceiptInput(BaseModel):
 
 class AccountingInput(BaseModel):
     production_run_id: UUID
-    packages_qty: float = Field(gt=0)
+    packages_qty: float = Field(default=0, ge=0)
     qty_per_package: float = Field(gt=0)
+    partial_package_qty: float = Field(default=0, ge=0)
     observed_at: datetime | None = None
     ticket_no: str | None = None
     comment: str | None = None
@@ -220,8 +221,9 @@ def accountant_control(payload: AccountingInput, user: CurrentUser):
     try:
         return record_accounting_control(
             user, payload.production_run_id, payload.packages_qty,
-            payload.qty_per_package, payload.observed_at,
-            payload.ticket_no, payload.comment, payload.client_event_id,
+            payload.qty_per_package, payload.partial_package_qty,
+            payload.observed_at, payload.ticket_no, payload.comment,
+            payload.client_event_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
