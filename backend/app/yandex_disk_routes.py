@@ -4,6 +4,7 @@ from .auth import require_roles
 from .config import settings
 from .erp_plan_import import (
     import_yandex_plan,
+    import_yandex_plan_folder,
     latest_yandex_plan_batch,
     yandex_plan_preview,
 )
@@ -69,7 +70,7 @@ async def preview():
 )
 async def import_plan():
     try:
-        return await import_yandex_plan()
+        return await import_yandex_plan_folder()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
