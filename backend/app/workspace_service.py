@@ -797,11 +797,31 @@ def record_warehouse_receipt(user, run_id, quantity, received_at, document_no, c
     return {"status": "ok", "receipt_id": str(receipt_id), "received_at": event_at.isoformat()}
 
 
-def record_accounting_control(user, run_id, packages_qty, qty_per_package, observed_at, ticket_no, comment, client_event_id):
-    if packages_qty <= 0 or qty_per_package <= 0:
-        raise ValueError("Количество упаковок и количество в упаковке должны быть больше нуля")
+def record_accounting_control(
+    user,
+    run_id,
+    packages_qty,
+    qty_per_package,
+    partial_package_qty,
+    observed_at,
+    ticket_no,
+    comment,
+    client_event_id,
+):
+    packages_qty = Decimal(str(packages_qty or 0))
+    qty_per_package = Decimal(str(qty_per_package or 0))
+    partial_package_qty = Decimal(str(partial_package_qty or 0))
 
-    quantity = packages_qty * qty_per_package
+    if qty_per_package <= 0:
+        raise ValueError("Количество штук в полном коробе должно быть больше нуля")
+    if packages_qty < 0 or partial_package_qty < 0:
+        raise ValueError("Количество коробов и количество в неполном коробе не могут быть отрицательными")
+    if packages_qty == 0 and partial_package_qty == 0:
+        raise ValueError("Укажите полные короба или количество в неполном коробе")
+    if partial_package_qty >= qty_per_package and partial_package_qty > 0:
+        raise ValueError("В неполном коробе должно быть меньше штук, чем в полном коробе")
+
+    quantity = packages_qty * qty_per_package + partial_package_qty
 
     with engine.begin() as connection:
         run = _load_run(connection, run_id)
@@ -811,12 +831,12 @@ def record_accounting_control(user, run_id, packages_qty, qty_per_package, obser
                 INSERT INTO accounting_control_events (
                     production_run_id, shift_id, equipment_id, product_id,
                     observed_at, ticket_no, packages_qty, qty_per_package,
-                    quantity, source_system, source_record_id,
+                    partial_package_qty, quantity, source_system, source_record_id,
                     entered_by_user_id, comment
                 ) VALUES (
                     :run_id, :shift_id, :equipment_id, :product_id,
                     :event_at, :ticket_no, :packages_qty, :qty_per_package,
-                    :quantity, 'WEB', :source_id, :user_id, :comment
+                    :partial_package_qty, :quantity, 'WEB', :source_id, :user_id, :comment
                 )
                 ON CONFLICT (source_system, source_record_id)
                 WHERE source_record_id IS NOT NULL
@@ -825,6 +845,7 @@ def record_accounting_control(user, run_id, packages_qty, qty_per_package, obser
                     ticket_no = EXCLUDED.ticket_no,
                     packages_qty = EXCLUDED.packages_qty,
                     qty_per_package = EXCLUDED.qty_per_package,
+                    partial_package_qty = EXCLUDED.partial_package_qty,
                     quantity = EXCLUDED.quantity,
                     comment = EXCLUDED.comment
                 RETURNING id
@@ -838,6 +859,7 @@ def record_accounting_control(user, run_id, packages_qty, qty_per_package, obser
                 "ticket_no": ticket_no,
                 "packages_qty": packages_qty,
                 "qty_per_package": qty_per_package,
+                "partial_package_qty": partial_package_qty,
                 "quantity": quantity,
                 "source_id": f"WEB:{client_event_id}",
                 "user_id": UUID(user["id"]),
@@ -845,8 +867,14 @@ def record_accounting_control(user, run_id, packages_qty, qty_per_package, obser
             },
         ).scalar_one()
 
-    return {"status": "ok", "event_id": str(event_id), "quantity": quantity}
-
+    return {
+        "status": "ok",
+        "event_id": str(event_id),
+        "quantity": float(quantity),
+        "full_packages_qty": float(packages_qty),
+        "qty_per_package": float(qty_per_package),
+        "partial_package_qty": float(partial_package_qty),
+    }
 
 def record_operator_defect(user, run_id, quantity, reason_id, occurred_at, comment, client_event_id):
     if quantity <= 0:
