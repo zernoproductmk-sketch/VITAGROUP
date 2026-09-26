@@ -36,3 +36,7 @@ nav button{display:flex;align-items:center;justify-content:space-between;gap:8px
 .qc-selected-task div:nth-child(4){grid-column:1/-1}
 .workspace-selection-warning{margin:10px 0 14px;padding:10px;border:1px solid #f2c94c;background:#fffbea;border-radius:8px;font-size:10px;color:#7a5d00}
 @media(max-width:700px){.qc-selected-task{grid-template-columns:1fr}.qc-selected-task div:nth-child(4){grid-column:auto}}
+
+.reconciliation-clickable-row{cursor:pointer;transition:background .15s ease}
+.reconciliation-clickable-row:hover{background:#f5f8ff}
+.reconciliation-clickable-row td:first-child b{text-decoration:underline;text-decoration-color:#c7d7fe;text-underline-offset:3px}
