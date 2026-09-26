@@ -312,7 +312,8 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
         output_qty = _as_float(row["output_qty"])
         operator_defect = _as_float(row["operator_defect_qty"])
         qc_defect = _as_float(row["qc_defect_qty"])
-        good_qty = max(output_qty - qc_defect, 0)
+        qc_additional_defect = max(qc_defect - operator_defect, 0)
+        good_qty = max(output_qty - qc_additional_defect, 0)
         rate = (
             _as_float(row["ideal_rate_per_hour"])
             if row["ideal_rate_per_hour"] is not None
@@ -364,6 +365,7 @@ def _run_metrics(connection, shift: dict) -> list[dict]:
                 "output_qty": output_qty,
                 "operator_defect_qty": operator_defect,
                 "qc_defect_qty": qc_defect,
+                "qc_additional_defect_qty": qc_additional_defect,
                 "good_qty": good_qty,
                 "warehouse_qty": _as_float(row["warehouse_qty"]),
                 "erp_qty": _as_float(row["erp_qty"]),
@@ -387,7 +389,8 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
     output_qty = sum(row["output_qty"] for row in rows)
     operator_defect = sum(row["operator_defect_qty"] for row in rows)
     qc_defect = sum(row["qc_defect_qty"] for row in rows)
-    good_qty = max(output_qty - qc_defect, 0)
+    qc_additional_defect = sum(row.get("qc_additional_defect_qty", 0) for row in rows)
+    good_qty = sum(row["good_qty"] for row in rows)
     warehouse_qty = sum(row["warehouse_qty"] for row in rows)
     erp_qty = sum(row["erp_qty"] for row in rows)
     plan_qty = sum(row["planned_qty"] for row in rows)
@@ -434,6 +437,7 @@ def _aggregate_metrics(rows: list[dict]) -> dict:
             "good_product": _round(good_qty, 3),
             "operator_defect": _round(operator_defect, 3),
             "qc_defect": _round(qc_defect, 3),
+            "qc_additional_defect": _round(qc_additional_defect, 3),
             "warehouse_received": _round(warehouse_qty, 3),
             "erp_fact": _round(erp_qty, 3),
         },
